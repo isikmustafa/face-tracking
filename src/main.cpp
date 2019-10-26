@@ -28,7 +28,7 @@ int main()
 	ImGui_ImplOpenGL3_Init(nullptr);
 	io.Fonts->AddFontDefault();
 
-	while (true)
+	while (!glfwWindowShouldClose(window.getWindow()))
 	{
 		glfwPollEvents();
 
@@ -61,7 +61,9 @@ int main()
 		glfwSwapBuffers(window.getWindow());
 		glClear(GL_COLOR_BUFFER_BIT);
 	}
+
 	ImGui::DestroyContext();
+	glfwTerminate();
 
 	return 0;
 }

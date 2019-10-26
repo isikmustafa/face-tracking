@@ -1,5 +1,3 @@
-//https://github.com/isikmustafa/pathtracer/blob/master/Window.cuh
-
 #pragma once
 
 #include "glsl_program.h"

@@ -91,7 +91,6 @@ void Window::renderWindow()
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, m_cuda_output_texture);
-	m_window_shader.setUniformIVar("final_image", { 0 });
 	m_window_quad.draw(m_window_shader);
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
