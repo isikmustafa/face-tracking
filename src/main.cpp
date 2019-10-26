@@ -63,7 +63,6 @@ int main()
 	}
 
 	ImGui::DestroyContext();
-	glfwTerminate();
 
 	return 0;
 }
