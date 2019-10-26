@@ -35,6 +35,9 @@
     <ClCompile Include="..\3rd\imgui\examples\imgui_impl_opengl3.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\glsl_program.cpp" />
+    <ClCompile Include="..\src\quad.cpp" />
+    <ClCompile Include="..\src\window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\3rd\imgui\imgui.h">
@@ -58,5 +61,13 @@
     <ClInclude Include="..\3rd\imgui\examples\imgui_impl_opengl3.h">
       <Filter>imgui</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\device_util.h" />
+    <ClInclude Include="..\src\glsl_program.h" />
+    <ClInclude Include="..\src\quad.h" />
+    <ClInclude Include="..\src\util.h" />
+    <ClInclude Include="..\src\window.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="..\src\main.cpp" />
   </ItemGroup>
 </Project>
