@@ -2,6 +2,9 @@
 
 Environment variables
 
+Side notes:
+Use `OpenCV 4.0.0`
+
 | NAME            | EXAMPLE VALUE                                                 |
 |-----------------|---------------------------------------------------------------|
 |GLFW3            |`\face-tracking\3rd\glfw-3.3\bin\lib-vc2017-64bit`             |
@@ -28,3 +31,4 @@ DLIB instruction
 	* USE_SSE4_INSTRUCTIONS
 	* USE_SSE2_INSTRUCTIONS
 	* USE_AVX_INSTRUCTIONS
+3) Build one of the project example in VS to generate dlib_build folder
