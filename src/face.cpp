@@ -58,18 +58,9 @@ Face::Face(const std::string& filename)
 	glBindBuffer(GL_ARRAY_BUFFER, m_vertex_buffer);
 	glBufferData(GL_ARRAY_BUFFER, positions_byte_size + colors_byte_size + tex_coords_byte_size, nullptr, GL_STATIC_DRAW);
 
-	glBufferSubData(GL_ARRAY_BUFFER,
-		0,
-		positions_byte_size,
-		positions.data());
-	glBufferSubData(GL_ARRAY_BUFFER,
-		positions_byte_size,
-		colors_byte_size,
-		colors.data());
-	glBufferSubData(GL_ARRAY_BUFFER,
-		positions_byte_size + colors_byte_size,
-		tex_coords_byte_size,
-		tex_coords.data());
+	glBufferSubData(GL_ARRAY_BUFFER, 0                                     , positions_byte_size , positions.data());
+	glBufferSubData(GL_ARRAY_BUFFER, positions_byte_size                   , colors_byte_size    , colors.data());
+	glBufferSubData(GL_ARRAY_BUFFER, positions_byte_size + colors_byte_size, tex_coords_byte_size, tex_coords.data());
 
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
@@ -82,8 +73,8 @@ Face::Face(const std::string& filename)
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_number_of_indices * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 
 	glBindVertexArray(0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 Face::Face(Face&& rhs)

@@ -3,16 +3,14 @@
 #include "device_util.h"
 
 #include <glm/gtc/matrix_transform.hpp>
-#include <imgui.h>
-#include <imgui_impl_opengl3.h>
-#include <imgui_impl_glfw.h>
 #include <GLFW/glfw3.h>
 
 int main()
 {
+	constexpr int gui_width = 240;
 	constexpr int screen_width = 720;
 	constexpr int screen_height = 480;
-	Window window(screen_width, screen_height);
+	Window window(gui_width, screen_width, screen_height);
 
 	GLSLProgram face_shader;
 	face_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/face.vert");
@@ -24,15 +22,6 @@ int main()
 
 	Face face("../MorphableModel/averageMesh.off");
 
-	//ImGui inits.
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO();
-	ImGui::StyleColorsDark();
-	ImGui_ImplGlfw_InitForOpenGL(window.getWindow(), true);
-	ImGui_ImplOpenGL3_Init(nullptr);
-	io.Fonts->AddFontDefault();
-
-	glEnable(GL_DEPTH_TEST);
 	while (!glfwWindowShouldClose(window.getWindow()))
 	{
 		glfwPollEvents();
@@ -43,29 +32,9 @@ int main()
 		face_shader.setMat4("projection", projection);
 		face.draw(face_shader);
 
-		//Start a new frame.
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::NewFrame();
-
-		//Position and size of window.
-		ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_FirstUseEver);
-		ImGui::SetNextWindowSize(ImVec2(240, screen_height), ImGuiCond_FirstUseEver);
-
-		//Any application code here
-		ImGui::Begin("Menu", nullptr, ImGuiWindowFlags_MenuBar);
-		ImGui::End();
-
-		//Render.
-		ImGui::Render();
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-		glfwSwapBuffers(window.getWindow());
-		glClear(GL_DEPTH_BUFFER_BIT);
-		glClear(GL_COLOR_BUFFER_BIT);
+		window.drawGui();
+		window.refresh();
 	}
-
-	ImGui::DestroyContext();
 
 	return 0;
 }
