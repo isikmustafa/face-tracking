@@ -16,14 +16,14 @@ Environment variables
 
 Extra files
 
-| NAME                              | VALUE                                       |
-|-----------------------------------|---------------------------------------------|
-|shape_predictor_68_face_landmarks  |`\face-tracking\project`             		  |
+| NAME                                  | VALUE                                    |
+|---------------------------------------|------------------------------------------|
+|shape_predictor_68_face_landmarks.dat  |`\face-tracking\project`             	   |
 
 DLIB instruction
 
-1) Download https://github.com/davisking/dlib
-2) Build the library and remember to set flags to ON in CMAKE:
+1) Download https://github.com/davisking/dlib Commit hash: e30f5e2fe88ff3a9c8265c6265b37956ce535ac2
+2) Build examples and remember to set flags to ON in CMAKE:
 	* DLIB_USE_CUDA
 	* USE_SSE4_INSTRUCTIONS
 	* USE_SSE2_INSTRUCTIONS
