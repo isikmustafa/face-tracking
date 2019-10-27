@@ -1,24 +1,28 @@
 #include "window.h"
+#include "face.h"
+#include "device_util.h"
+
+#include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_glfw.h>
-#include "device_util.h"
 #include <GLFW/glfw3.h>
-
-__global__ void dummyKernel(cudaSurfaceObject_t window_surface_content, float3 rgb)
-{
-	auto index = util::getThreadIndex2D();
-
-	surf2Dwrite(util::rgbToUint(rgb), window_surface_content, index.x * 4, index.y);
-}
 
 int main()
 {
 	constexpr int screen_width = 720;
 	constexpr int screen_height = 480;
-
 	Window window(screen_width, screen_height);
-	float3 screen_color{ 128.0f, 128.0f , 128.0f };
+
+	GLSLProgram face_shader;
+	face_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/face.vert");
+	face_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/face.frag");
+	face_shader.link();
+	auto model = glm::scale(glm::mat4(1.0f), glm::vec3(10.0f));
+	auto view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	auto projection = glm::perspective(45.0f, static_cast<float>(screen_width) / screen_height, 0.01f, 100.0f);
+
+	Face face("../MorphableModel/averageMesh.off");
 
 	//ImGui inits.
 	ImGui::CreateContext();
@@ -28,15 +32,16 @@ int main()
 	ImGui_ImplOpenGL3_Init(nullptr);
 	io.Fonts->AddFontDefault();
 
+	glEnable(GL_DEPTH_TEST);
 	while (!glfwWindowShouldClose(window.getWindow()))
 	{
 		glfwPollEvents();
 
-		dim3 threads(16, 16);
-		dim3 blocks(screen_width / threads.x, screen_height / threads.y);
-		dummyKernel << <blocks, threads >> > (window.getContent(), screen_color);
-
-		window.renderWindow();
+		face_shader.use();
+		face_shader.setMat4("model", model);
+		face_shader.setMat4("view", view);
+		face_shader.setMat4("projection", projection);
+		face.draw(face_shader);
 
 		//Start a new frame.
 		ImGui_ImplOpenGL3_NewFrame();
@@ -49,9 +54,6 @@ int main()
 
 		//Any application code here
 		ImGui::Begin("Menu", nullptr, ImGuiWindowFlags_MenuBar);
-		ImGui::SliderFloat("Red", &screen_color.x, 0.0f, 255.0f, "%.1f");
-		ImGui::SliderFloat("Green", &screen_color.y, 0.0f, 255.0f, "%.1f");
-		ImGui::SliderFloat("Blue", &screen_color.z, 0.0f, 255.0f, "%.1f");
 		ImGui::End();
 
 		//Render.
@@ -59,6 +61,7 @@ int main()
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 		glfwSwapBuffers(window.getWindow());
+		glClear(GL_DEPTH_BUFFER_BIT);
 		glClear(GL_COLOR_BUFFER_BIT);
 	}
 

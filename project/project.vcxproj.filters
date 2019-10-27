@@ -15,6 +15,12 @@
     <None Include="..\src\shader\window.frag">
       <Filter>shader</Filter>
     </None>
+    <None Include="..\src\shader\face.frag">
+      <Filter>shader</Filter>
+    </None>
+    <None Include="..\src\shader\face.vert">
+      <Filter>shader</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\3rd\imgui\imgui.cpp">
@@ -38,6 +44,7 @@
     <ClCompile Include="..\src\glsl_program.cpp" />
     <ClCompile Include="..\src\quad.cpp" />
     <ClCompile Include="..\src\window.cpp" />
+    <ClCompile Include="..\src\face.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\3rd\imgui\imgui.h">
@@ -66,6 +73,7 @@
     <ClInclude Include="..\src\quad.h" />
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\window.h" />
+    <ClInclude Include="..\src\face.h" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\src\main.cpp" />

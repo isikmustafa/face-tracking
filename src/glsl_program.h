@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <glm/glm.hpp>
 #include <glad/glad.h>
 
 #include <string>
@@ -24,6 +25,7 @@ public:
 
 	void setUniformIVar(const std::string& name, std::initializer_list<GLint> values) const;
 	void setUniformFVar(const std::string& name, std::initializer_list<GLfloat> values) const;
+	void setMat4(const std::string& name, const glm::mat4& matrix) const;
 
 private:
 	std::vector<GLuint> m_shaders;

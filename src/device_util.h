@@ -4,10 +4,9 @@
 #include <functional>
 #include <cuda_runtime.h>
 
-#define CHECK_CUDA_ERROR( err ) (util::checkCudaError( err, __FILE__, __LINE__))
-
 namespace util
 {
+#ifdef __NVCC__
 	__device__ inline unsigned int getThreadIndex1D()
 	{
 		return { threadIdx.x + blockIdx.x * blockDim.x };
@@ -32,4 +31,5 @@ namespace util
 
 		return pixel;
 	}
+#endif
 }

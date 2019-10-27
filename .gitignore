@@ -360,3 +360,4 @@ MigrationBackup/
 *.fatbin
 
 /3rd
+MorphableModel/
