@@ -4,6 +4,7 @@
 #include <imgui_impl_glfw.h>
 #include "device_util.h"
 #include <GLFW/glfw3.h>
+#include "tracker.h"
 
 __global__ void dummyKernel(cudaSurfaceObject_t window_surface_content, float3 rgb)
 {
@@ -16,6 +17,9 @@ int main()
 {
 	constexpr int screen_width = 720;
 	constexpr int screen_height = 480;
+
+	auto tracker = std::make_unique<Tracker>();
+	tracker->start();
 
 	Window window(screen_width, screen_height);
 	float3 screen_color{ 128.0f, 128.0f , 128.0f };

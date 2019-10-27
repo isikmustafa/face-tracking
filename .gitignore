@@ -358,5 +358,6 @@ MigrationBackup/
 *.ptx
 *.cubin
 *.fatbin
+*.dat
 
 /3rd
