@@ -7,11 +7,11 @@
 #include <dlib/image_processing.h>
 #include <dlib/gui_widgets.h>
 
-using namespace dlib;
-using namespace std;
-
+/*
+ * The main class for tracking face landmarks with a web cam support
+ */
 class Tracker
 {
 public:
-	void start();
+	void start() const;
 };

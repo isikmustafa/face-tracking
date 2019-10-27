@@ -1,19 +1,19 @@
 #include "tracker.h"
 
-void Tracker::start() {
+void Tracker::start() const {
 	try
 	{
 		cv::VideoCapture cap(0);
 		if (!cap.isOpened())
 		{
-			cerr << "Unable to connect to camera" << endl;
+			std::cerr << "Unable to connect to camera" << std::endl;
 			return;
 		}
 
-		image_window win;
-		frontal_face_detector detector = get_frontal_face_detector();
-		shape_predictor pose_model;
-		deserialize("shape_predictor_68_face_landmarks.dat") >> pose_model;
+		dlib::image_window win;
+		dlib::frontal_face_detector detector = dlib::get_frontal_face_detector();
+		dlib::shape_predictor pose_model;
+		dlib::deserialize("shape_predictor_68_face_landmarks.dat") >> pose_model;
 
 		while (!win.is_closed())
 		{
@@ -24,24 +24,24 @@ void Tracker::start() {
 				break;
 			}
 
-			cv_image<bgr_pixel> cimg(temp);
-			std::vector<rectangle> faces = detector(cimg);
+			dlib::cv_image<dlib::bgr_pixel> cimg(temp);
+			std::vector<dlib::rectangle> faces = detector(cimg);
 
-			std::vector<full_object_detection> shapes;
-			for (unsigned long i = 0; i < faces.size(); ++i)
-				shapes.push_back(pose_model(cimg, faces[i]));
+			std::vector<dlib::full_object_detection> shapes;
+			for (auto face : faces)
+				shapes.push_back(pose_model(cimg, face));
 
 			win.clear_overlay();
 			win.set_image(cimg);
-			win.add_overlay(render_face_detections(shapes));
+			win.add_overlay(dlib::render_face_detections(shapes));
 		}
 	}
-	catch (serialization_error& e)
+	catch (dlib::serialization_error& e)
 	{
-		cout << endl << e.what() << endl;
+		std::cout << std::endl << e.what() << std::endl;
 	}
-	catch (exception& e)
+	catch (std::exception& e)
 	{
-		cout << e.what() << endl;
+		std::cout << e.what() << std::endl;
 	}
 }

@@ -18,7 +18,7 @@ int main()
 	constexpr int screen_width = 720;
 	constexpr int screen_height = 480;
 
-	auto tracker = std::make_unique<Tracker>();
+	const auto tracker = std::make_unique<Tracker>();
 	tracker->start();
 
 	Window window(screen_width, screen_height);
