@@ -6,9 +6,9 @@
 #include <fstream>
 #include <iostream>
 
-Face::Face(const std::string& filename)
+Face::Face(const std::string& morphable_model_directory)
 {
-	std::ifstream file(filename);
+	std::ifstream file(morphable_model_directory + "/averageMesh.off");
 	std::string str_dummy;
 	file >> str_dummy;
 
@@ -48,9 +48,10 @@ Face::Face(const std::string& filename)
 
 	//We will only update position and color of vertices. In order not to copy the constant texture coordinates,
 	//we dont allocate memory for them.
-	CHECK_CUDA_ERROR(cudaMalloc(&m_face_data_gpu, positions_byte_size + colors_byte_size));
-	CHECK_CUDA_ERROR(cudaMemcpy(m_face_data_gpu                           , positions.data(), positions_byte_size, cudaMemcpyHostToDevice));
-	CHECK_CUDA_ERROR(cudaMemcpy(m_face_data_gpu + m_number_of_vertices * 3, colors.data()   , colors_byte_size   , cudaMemcpyHostToDevice));
+	CHECK_CUDA_ERROR(cudaMalloc(&m_average_face_gpu, positions_byte_size + colors_byte_size));
+	CHECK_CUDA_ERROR(cudaMalloc(&m_current_face_gpu, positions_byte_size + colors_byte_size));
+	CHECK_CUDA_ERROR(cudaMemcpy(m_average_face_gpu, positions.data(), positions_byte_size, cudaMemcpyHostToDevice));
+	CHECK_CUDA_ERROR(cudaMemcpy(m_average_face_gpu + m_number_of_vertices * 3, colors.data(), colors_byte_size, cudaMemcpyHostToDevice));
 
 	glGenVertexArrays(1, &m_vertex_array);
 	glGenBuffers(1, &m_vertex_buffer);
@@ -81,32 +82,35 @@ Face::Face(const std::string& filename)
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-}
 
-Face::Face(Face&& rhs)
-{
-	m_vertex_array = rhs.m_vertex_array;
-	m_vertex_buffer = rhs.m_vertex_buffer;
-	m_index_buffer = rhs.m_index_buffer;
-	m_number_of_indices = rhs.m_number_of_indices;
-	rhs.m_vertex_array = 0;
-	rhs.m_vertex_buffer = 0;
-	rhs.m_index_buffer = 0;
-	rhs.m_number_of_indices = 0;
-}
+	auto shape_basis = loadModelData(morphable_model_directory + "/ShapeBasis_modified.matrix", true);
+	m_shape_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationShape.vec", false);
+	m_shape_coefficients.resize(m_shape_std_dev.size(), 0.0f);
+	m_shape_coefficients_normalized.resize(m_shape_std_dev.size());
 
-Face& Face::operator=(Face&& rhs)
-{
-	m_vertex_array = rhs.m_vertex_array;
-	m_vertex_buffer = rhs.m_vertex_buffer;
-	m_index_buffer = rhs.m_index_buffer;
-	m_number_of_indices = rhs.m_number_of_indices;
-	rhs.m_vertex_array = 0;
-	rhs.m_vertex_buffer = 0;
-	rhs.m_index_buffer = 0;
-	rhs.m_number_of_indices = 0;
+	CHECK_CUDA_ERROR(cudaMalloc(&m_shape_basis_gpu, shape_basis.size() * sizeof(float)));
+	CHECK_CUDA_ERROR(cudaMalloc(&m_shape_coefficients_gpu, m_shape_coefficients.size() * sizeof(float)));
+	CHECK_CUDA_ERROR(cudaMemcpy(m_shape_basis_gpu, shape_basis.data(), shape_basis.size() * sizeof(float), cudaMemcpyHostToDevice));
 
-	return *this;
+	auto albedo_basis = loadModelData(morphable_model_directory + "/AlbedoBasis_modified.matrix", true);
+	m_albedo_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationAlbedo.vec", false);
+	m_albedo_coefficients.resize(m_albedo_std_dev.size(), 0.0f);
+	m_albedo_coefficients_normalized.resize(m_albedo_std_dev.size());
+
+	CHECK_CUDA_ERROR(cudaMalloc(&m_albedo_basis_gpu, albedo_basis.size() * sizeof(float)));
+	CHECK_CUDA_ERROR(cudaMalloc(&m_albedo_coefficients_gpu, m_albedo_coefficients.size() * sizeof(float)));
+	CHECK_CUDA_ERROR(cudaMemcpy(m_albedo_basis_gpu, albedo_basis.data(), albedo_basis.size() * sizeof(float), cudaMemcpyHostToDevice));
+
+	auto expression_basis = loadModelData(morphable_model_directory + "/ExpressionBasis_modified.matrix", true);
+	m_expression_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationExpression.vec", false);
+	m_expression_coefficients.resize(m_expression_std_dev.size(), 0.0f);
+	m_expression_coefficients_normalized.resize(m_expression_std_dev.size());
+
+	CHECK_CUDA_ERROR(cudaMalloc(&m_expression_basis_gpu, expression_basis.size() * sizeof(float)));
+	CHECK_CUDA_ERROR(cudaMalloc(&m_expression_coefficients_gpu, m_expression_coefficients.size() * sizeof(float)));
+	CHECK_CUDA_ERROR(cudaMemcpy(m_expression_basis_gpu, expression_basis.data(), expression_basis.size() * sizeof(float), cudaMemcpyHostToDevice));
+
+	cublasCreate(&m_cublas);
 }
 
 Face::~Face()
@@ -126,10 +130,77 @@ Face::~Face()
 		glDeleteVertexArrays(1, &m_vertex_array);
 		m_vertex_array = 0;
 	}
-	if (m_face_data_gpu)
+	if (m_average_face_gpu)
 	{
-		CHECK_CUDA_ERROR(cudaFree(m_face_data_gpu));
+		CHECK_CUDA_ERROR(cudaFree(m_average_face_gpu));
 	}
+	if (m_current_face_gpu)
+	{
+		CHECK_CUDA_ERROR(cudaFree(m_current_face_gpu));
+	}
+	if (m_shape_basis_gpu)
+	{
+		CHECK_CUDA_ERROR(cudaFree(m_shape_basis_gpu));
+	}
+	if (m_shape_coefficients_gpu)
+	{
+		CHECK_CUDA_ERROR(cudaFree(m_shape_coefficients_gpu));
+	}
+	if (m_albedo_basis_gpu)
+	{
+		CHECK_CUDA_ERROR(cudaFree(m_albedo_basis_gpu));
+	}
+	if (m_albedo_coefficients_gpu)
+	{
+		CHECK_CUDA_ERROR(cudaFree(m_albedo_coefficients_gpu));
+	}
+	if (m_expression_basis_gpu)
+	{
+		CHECK_CUDA_ERROR(cudaFree(m_expression_basis_gpu));
+	}
+	if (m_expression_coefficients_gpu)
+	{
+		CHECK_CUDA_ERROR(cudaFree(m_expression_coefficients_gpu));
+	}
+	cublasDestroy(m_cublas);
+}
+
+void Face::computeFace()
+{
+	int shape_number_of_coefficients = m_shape_coefficients.size();
+	for (int i = 0; i < shape_number_of_coefficients; ++i)
+	{
+		m_shape_coefficients_normalized[i] = m_shape_coefficients[i] * m_shape_std_dev[i];
+	}
+
+	int albedo_number_of_coefficients = m_albedo_coefficients.size();
+	for (int i = 0; i < albedo_number_of_coefficients; ++i)
+	{
+		m_albedo_coefficients_normalized[i] = m_albedo_coefficients[i] * m_albedo_std_dev[i];
+	}
+
+	int expression_number_of_coefficients = m_expression_coefficients.size();
+	for (int i = 0; i < expression_number_of_coefficients; ++i)
+	{
+		m_expression_coefficients_normalized[i] = m_expression_coefficients[i] * m_expression_std_dev[i];
+	}
+
+	CHECK_CUDA_ERROR(cudaMemcpy(m_shape_coefficients_gpu, m_shape_coefficients_normalized.data(), shape_number_of_coefficients * sizeof(float), cudaMemcpyHostToDevice));
+	CHECK_CUDA_ERROR(cudaMemcpy(m_albedo_coefficients_gpu, m_albedo_coefficients_normalized.data(), albedo_number_of_coefficients * sizeof(float), cudaMemcpyHostToDevice));
+	CHECK_CUDA_ERROR(cudaMemcpy(m_expression_coefficients_gpu, m_expression_coefficients_normalized.data(), expression_number_of_coefficients * sizeof(float), cudaMemcpyHostToDevice));
+	CHECK_CUDA_ERROR(cudaMemcpy(m_current_face_gpu, m_average_face_gpu, m_number_of_vertices * sizeof(glm::vec3) * 2, cudaMemcpyHostToDevice));
+
+	float alpha = 1.0f;
+	float beta = 1.0f;
+	int m = 3 * m_number_of_vertices;
+	int n = shape_number_of_coefficients;
+	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_shape_basis_gpu, m, m_shape_coefficients_gpu, 1, &beta, m_current_face_gpu, 1);
+
+	n = albedo_number_of_coefficients;
+	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_albedo_basis_gpu, m, m_albedo_coefficients_gpu, 1, &beta, m_current_face_gpu + m, 1);
+
+	n = expression_number_of_coefficients;
+	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_expression_basis_gpu, m, m_expression_coefficients_gpu, 1, &beta, m_current_face_gpu, 1);
 }
 
 void Face::updateVertexBuffer()
@@ -140,7 +211,7 @@ void Face::updateVertexBuffer()
 	void* vertex_buffer_ptr;
 	size_t size;
 	CHECK_CUDA_ERROR(cudaGraphicsResourceGetMappedPointer(&vertex_buffer_ptr, &size, m_resource));
-	CHECK_CUDA_ERROR(cudaMemcpy(vertex_buffer_ptr, m_face_data_gpu, m_number_of_vertices * sizeof(glm::vec3) * 2, cudaMemcpyDeviceToDevice));
+	CHECK_CUDA_ERROR(cudaMemcpy(vertex_buffer_ptr, m_current_face_gpu, m_number_of_vertices * sizeof(glm::vec3) * 2, cudaMemcpyDeviceToDevice));
 
 	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &m_resource, 0));
 }
@@ -152,4 +223,19 @@ void Face::draw(const GLSLProgram& program) const
 	glBindVertexArray(m_vertex_array);
 	glDrawElements(GL_TRIANGLES, m_number_of_indices, GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
+}
+
+//Only load .matrix file with _modified suffix.
+//You can use this for any .vec file.
+std::vector<float> Face::loadModelData(const std::string& filename, bool is_basis)
+{
+	std::ifstream file(filename, std::ifstream::binary);
+
+	unsigned int size;
+	file.read((char*)&size, sizeof(unsigned int));
+	std::vector<float> basis(size);
+	file.read((char*)(basis.data()), size * sizeof(float));
+	file.close();
+
+	return basis;
 }

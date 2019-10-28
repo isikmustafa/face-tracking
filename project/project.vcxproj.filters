@@ -45,6 +45,7 @@
     <ClCompile Include="..\src\quad.cpp" />
     <ClCompile Include="..\src\window.cpp" />
     <ClCompile Include="..\src\face.cpp" />
+    <ClCompile Include="..\src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\3rd\imgui\imgui.h">
@@ -74,8 +75,5 @@
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\window.h" />
     <ClInclude Include="..\src\face.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <CudaCompile Include="..\src\main.cpp" />
   </ItemGroup>
 </Project>

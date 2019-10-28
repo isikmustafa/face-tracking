@@ -63,6 +63,11 @@ Window::~Window()
 	ImGui::DestroyContext();
 }
 
+void Window::attachToGui(std::function<void()> func)
+{
+	m_funcs.push_back(std::move(func));
+}
+
 void Window::drawGui()
 {
 	//Start a new frame.
@@ -76,6 +81,12 @@ void Window::drawGui()
 
 	//Any application code here
 	ImGui::Begin("Menu", nullptr, ImGuiWindowFlags_MenuBar);
+
+	for (auto& func : m_funcs)
+	{
+		func();
+	}
+
 	ImGui::End();
 
 	//Render.
