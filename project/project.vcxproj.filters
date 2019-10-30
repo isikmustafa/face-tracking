@@ -46,6 +46,7 @@
     <ClCompile Include="..\src\window.cpp" />
     <ClCompile Include="..\src\face.cpp" />
     <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="..\src\tracker.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\3rd\imgui\imgui.h">
@@ -75,5 +76,6 @@
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\window.h" />
     <ClInclude Include="..\src\face.h" />
+    <ClInclude Include="..\src\tracker.h" />
   </ItemGroup>
 </Project>

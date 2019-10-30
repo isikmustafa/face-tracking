@@ -1,6 +1,7 @@
 #include "window.h"
 #include "face.h"
 #include "device_util.h"
+#include "tracker.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <GLFW/glfw3.h>
@@ -20,6 +21,9 @@ int main()
 	auto model = glm::scale(glm::mat4(1.0f), glm::vec3(10.0f));
 	auto view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	auto projection = glm::perspective(45.0f, static_cast<float>(screen_width) / screen_height, 0.01f, 100.0f);
+
+	//const auto tracker = std::make_unique<Tracker>();
+	//tracker->start();
 
 	Face face("../MorphableModel/");
 
