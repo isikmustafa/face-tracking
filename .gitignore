@@ -361,3 +361,5 @@ MigrationBackup/
 *.dat
 
 /3rd
+MorphableModel/
+project/imgui.ini

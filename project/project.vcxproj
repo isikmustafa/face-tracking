@@ -17,8 +17,9 @@
     <ClCompile Include="..\3rd\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\3rd\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\3rd\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="..\src\face.cpp" />
     <ClCompile Include="..\src\glsl_program.cpp" />
-    <CudaCompile Include="..\src\main.cpp" />
+    <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\quad.cpp" />
     <ClCompile Include="..\src\tracker.cpp" />
     <ClCompile Include="..\src\window.cpp" />
@@ -32,6 +33,7 @@
     <ClInclude Include="..\3rd\imgui\imstb_textedit.h" />
     <ClInclude Include="..\3rd\imgui\imstb_truetype.h" />
     <ClInclude Include="..\src\device_util.h" />
+    <ClInclude Include="..\src\face.h" />
     <ClInclude Include="..\src\glsl_program.h" />
     <ClInclude Include="..\src\quad.h" />
     <ClInclude Include="..\src\tracker.h" />
@@ -39,6 +41,8 @@
     <ClInclude Include="..\src\window.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\src\shader\face.frag" />
+    <None Include="..\src\shader\face.vert" />
     <None Include="..\src\shader\window.frag" />
     <None Include="..\src\shader\window.vert" />
   </ItemGroup>
@@ -73,15 +77,14 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LinkIncremental>
-    </LinkIncremental>
-    <IncludePath>..\3rd\imgui\examples;..\3rd\imgui;..\3rd\glfw-3.3\include;..\3rd\glad\include;$(DLIB_DIR);$(IncludePath)</IncludePath>
+    <LinkIncremental>true</LinkIncremental>
+    <IncludePath>..\3rd\glm;..\3rd\imgui\examples;..\3rd\imgui;..\3rd\glfw-3.3\include;..\3rd\glad\include;$(DLIB_DIR);$(IncludePath)</IncludePath>
     <LibraryPath>..\3rd\glfw-3.3\lib\lib-vc2017-64bit;..\3rd\glad\lib;$(DLIB_DIR);$(LibraryPath)</LibraryPath>
     <ReferencePath>$(DLIB_DIR);$(ReferencePath)</ReferencePath>
     <ExecutablePath>$(ExecutablePath)</ExecutablePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>..\3rd\imgui\examples;..\3rd\imgui;..\3rd\glfw-3.3\include;..\3rd\glad\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\3rd\dlib; $(OPENCV_INCLUDE);..\3rd\glm;..\3rd\imgui\examples;..\3rd\imgui;..\3rd\glfw-3.3\include;..\3rd\glad\include;$(IncludePath)</IncludePath>
     <LibraryPath>..\3rd\glfw-3.3\lib\lib-vc2017-64bit;..\3rd\glad\lib;$(LibraryPath)</LibraryPath>
     <ReferencePath>$(ReferencePath)</ReferencePath>
     <ExecutablePath>$(ExecutablePath)</ExecutablePath>
@@ -96,7 +99,7 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>glad.lib;glfw3dll.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;opencv_world400d.lib;dlib19.18.99_debug_64bit_msvc1916.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cublas.lib;glad.lib;glfw3dll.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;opencv_world400d.lib;dlib19.18.99_debug_64bit_msvc1916.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(DLIB_LIB_DEBUG);$(GLFW3);$(OPENCV_LIB);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <CudaCompile>
@@ -114,14 +117,14 @@ xcopy /d "$(OPENCV_BIN)\opencv_world400d.dll" "$(TargetDir)"</Command>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;WIN64;NDEBUG;_CONSOLE;_SILENCE_FPOS_SEEKPOS_DEPRECATION_WARNING;_USE_MATH_DEFINES;_CRT_SECURE_NO_WARNINGS;DLIB_USE_CUDA;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(DLIB_DIR)\dlib\..;$(OPENCV_INCLUDE);%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(OPENCV_INCLUDE);%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>glad.lib;glfw3dll.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;opencv_world400.lib;dlib19.18.99_release_64bit_msvc1916.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cublas.lib;glad.lib;glfw3dll.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;opencv_world400.lib;dlib19.18.99_release_64bit_msvc1916.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(DLIB_LIB_RELEASE);$(GLFW3);$(OPENCV_LIB);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <CudaCompile>

@@ -1,6 +1,7 @@
 #include "tracker.h"
 
-void Tracker::start() const {
+void Tracker::start() const
+{
 	try
 	{
 		cv::VideoCapture cap(0);
@@ -28,8 +29,10 @@ void Tracker::start() const {
 			std::vector<dlib::rectangle> faces = detector(cimg);
 
 			std::vector<dlib::full_object_detection> shapes;
-			for (auto face : faces)
+			for (const auto& face : faces)
+			{
 				shapes.push_back(pose_model(cimg, face));
+			}
 
 			win.clear_overlay();
 			win.set_image(cimg);
