@@ -55,11 +55,11 @@ int main()
 	auto expression_parameters_gui = [&expression_coefficients]()
 	{
 		ImGui::CollapsingHeader("Expression Parameters", ImGuiTreeNodeFlags_DefaultOpen);
-		ImGui::SliderFloat("Expression1", &expression_coefficients[0], -5.0f, 5.0f);
-		ImGui::SliderFloat("Expression2", &expression_coefficients[1], -5.0f, 5.0f);
-		ImGui::SliderFloat("Expression3", &expression_coefficients[2], -5.0f, 5.0f);
-		ImGui::SliderFloat("Expression4", &expression_coefficients[3], -5.0f, 5.0f);
-		ImGui::SliderFloat("Expression5", &expression_coefficients[4], -5.0f, 5.0f);
+		ImGui::SliderFloat("Expression1", &expression_coefficients[0], 0.0f, 1.0f);
+		ImGui::SliderFloat("Expression2", &expression_coefficients[1], 0.0f, 1.0f);
+		ImGui::SliderFloat("Expression3", &expression_coefficients[2], 0.0f, 1.0f);
+		ImGui::SliderFloat("Expression4", &expression_coefficients[3], 0.0f, 1.0f);
+		ImGui::SliderFloat("Expression5", &expression_coefficients[4], 0.0f, 1.0f);
 	};
 	window.attachToGui(std::move(expression_parameters_gui));
 
