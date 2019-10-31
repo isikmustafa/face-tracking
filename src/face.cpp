@@ -42,17 +42,13 @@ Face::Face(const std::string& morphable_model_directory)
 	}
 	file.close();
 
-	int positions_byte_size = m_number_of_vertices * sizeof(glm::vec3);
-	int colors_byte_size = m_number_of_vertices * sizeof(glm::vec3);
-	int tex_coords_byte_size = m_number_of_vertices * sizeof(glm::vec2);
-
 	//We will only update position and color of vertices. In order not to copy the constant texture coordinates,
 	//we dont allocate memory for them.
-	m_average_face_gpu = util::DeviceArray<float>(m_number_of_vertices * 6);
-	m_current_face_gpu = util::DeviceArray<float>(m_number_of_vertices * 6);
+	m_average_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 2);
+	m_current_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 2);
 
-	CHECK_CUDA_ERROR(cudaMemcpy(m_average_face_gpu.getPtr(), positions.data(), positions_byte_size, cudaMemcpyHostToDevice));
-	CHECK_CUDA_ERROR(cudaMemcpy(m_average_face_gpu.getPtr() + m_number_of_vertices * 3, colors.data(), colors_byte_size, cudaMemcpyHostToDevice));
+	util::copy(m_average_face_gpu, positions, m_number_of_vertices);
+	util::copy(m_average_face_gpu, colors, m_number_of_vertices, m_number_of_vertices, 0);
 
 	glGenVertexArrays(1, &m_vertex_array);
 	glGenBuffers(1, &m_vertex_buffer);
@@ -63,6 +59,10 @@ Face::Face(const std::string& morphable_model_directory)
 	assert(m_index_buffer);
 
 	glBindVertexArray(m_vertex_array);
+
+	int positions_byte_size = m_number_of_vertices * sizeof(glm::vec3);
+	int colors_byte_size = m_number_of_vertices * sizeof(glm::vec3);
+	int tex_coords_byte_size = m_number_of_vertices * sizeof(glm::vec2);
 
 	glBindBuffer(GL_ARRAY_BUFFER, m_vertex_buffer);
 	glBufferData(GL_ARRAY_BUFFER, positions_byte_size + colors_byte_size + tex_coords_byte_size, nullptr, GL_STATIC_DRAW);
@@ -160,13 +160,16 @@ void Face::computeFace()
 	float beta = 1.0f;
 	int m = 3 * m_number_of_vertices;
 	int n = shape_number_of_coefficients;
-	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_shape_basis_gpu.getPtr(), m, m_shape_coefficients_gpu.getPtr(), 1, &beta, m_current_face_gpu.getPtr(), 1);
+	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_shape_basis_gpu.getPtr(), m, m_shape_coefficients_gpu.getPtr(), 1, &beta,
+		reinterpret_cast<float*>(m_current_face_gpu.getPtr()), 1);
 
 	n = albedo_number_of_coefficients;
-	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_albedo_basis_gpu.getPtr(), m, m_albedo_coefficients_gpu.getPtr(), 1, &beta, m_current_face_gpu.getPtr() + m, 1);
+	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_albedo_basis_gpu.getPtr(), m, m_albedo_coefficients_gpu.getPtr(), 1, &beta,
+		reinterpret_cast<float*>(m_current_face_gpu.getPtr()) + m, 1);
 
 	n = expression_number_of_coefficients;
-	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_expression_basis_gpu.getPtr(), m, m_expression_coefficients_gpu.getPtr(), 1, &beta, m_current_face_gpu.getPtr(), 1);
+	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_expression_basis_gpu.getPtr(), m, m_expression_coefficients_gpu.getPtr(), 1, &beta,
+		reinterpret_cast<float*>(m_current_face_gpu.getPtr()), 1);
 }
 
 void Face::updateVertexBuffer()

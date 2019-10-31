@@ -43,8 +43,8 @@ private:
 
 	//CUDA-GL interop for buffer object.
 	cudaGraphicsResource* m_resource{ nullptr };
-	util::DeviceArray<float> m_average_face_gpu;
-	util::DeviceArray<float> m_current_face_gpu;
+	util::DeviceArray<glm::vec3> m_average_face_gpu;
+	util::DeviceArray<glm::vec3> m_current_face_gpu;
 
 	//cuBLAS
 	cublasHandle_t m_cublas;
