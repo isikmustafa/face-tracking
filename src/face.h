@@ -1,5 +1,7 @@
 #pragma once
 
+#include "device_array.h"
+
 #include <glm/glm.hpp>
 #include <glad/glad.h>
 #include <string>
@@ -41,9 +43,8 @@ private:
 
 	//CUDA-GL interop for buffer object.
 	cudaGraphicsResource* m_resource{ nullptr };
-	float* m_average_face_gpu{ nullptr };
-	float* m_current_face_gpu{ nullptr };
-	int m_face_data_size{ 0 };
+	util::DeviceArray<float> m_average_face_gpu;
+	util::DeviceArray<float> m_current_face_gpu;
 
 	//cuBLAS
 	cublasHandle_t m_cublas;
@@ -52,22 +53,22 @@ private:
 	std::vector<float> m_shape_std_dev;
 	std::vector<float> m_shape_coefficients;
 	std::vector<float> m_shape_coefficients_normalized;
-	float* m_shape_basis_gpu{ nullptr };
-	float* m_shape_coefficients_gpu{ nullptr };
+	util::DeviceArray<float> m_shape_basis_gpu;
+	util::DeviceArray<float> m_shape_coefficients_gpu;
 
 	//Albedo basis and standard deviation.
 	std::vector<float> m_albedo_std_dev;
 	std::vector<float> m_albedo_coefficients;
 	std::vector<float> m_albedo_coefficients_normalized;
-	float* m_albedo_basis_gpu{ nullptr };
-	float* m_albedo_coefficients_gpu{ nullptr };
+	util::DeviceArray<float> m_albedo_basis_gpu;
+	util::DeviceArray<float> m_albedo_coefficients_gpu;
 
 	//Expression basis and standard deviation.
 	std::vector<float> m_expression_std_dev;
 	std::vector<float> m_expression_coefficients;
 	std::vector<float> m_expression_coefficients_normalized;
-	float* m_expression_basis_gpu{ nullptr };
-	float* m_expression_coefficients_gpu{ nullptr };
+	util::DeviceArray<float> m_expression_basis_gpu;
+	util::DeviceArray<float> m_expression_coefficients_gpu;
 
 private:
 	std::vector<float> loadModelData(const std::string& filename, bool is_basis);
