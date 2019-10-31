@@ -42,16 +42,13 @@ Face::Face(const std::string& morphable_model_directory)
 	}
 	file.close();
 
-	int positions_byte_size = m_number_of_vertices * sizeof(glm::vec3);
-	int colors_byte_size = m_number_of_vertices * sizeof(glm::vec3);
-	int tex_coords_byte_size = m_number_of_vertices * sizeof(glm::vec2);
-
 	//We will only update position and color of vertices. In order not to copy the constant texture coordinates,
 	//we dont allocate memory for them.
-	CHECK_CUDA_ERROR(cudaMalloc(&m_average_face_gpu, positions_byte_size + colors_byte_size));
-	CHECK_CUDA_ERROR(cudaMalloc(&m_current_face_gpu, positions_byte_size + colors_byte_size));
-	CHECK_CUDA_ERROR(cudaMemcpy(m_average_face_gpu, positions.data(), positions_byte_size, cudaMemcpyHostToDevice));
-	CHECK_CUDA_ERROR(cudaMemcpy(m_average_face_gpu + m_number_of_vertices * 3, colors.data(), colors_byte_size, cudaMemcpyHostToDevice));
+	m_average_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 2);
+	m_current_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 2);
+
+	util::copy(m_average_face_gpu, positions, m_number_of_vertices);
+	util::copy(m_average_face_gpu, colors, m_number_of_vertices, m_number_of_vertices, 0);
 
 	glGenVertexArrays(1, &m_vertex_array);
 	glGenBuffers(1, &m_vertex_buffer);
@@ -62,6 +59,10 @@ Face::Face(const std::string& morphable_model_directory)
 	assert(m_index_buffer);
 
 	glBindVertexArray(m_vertex_array);
+
+	int positions_byte_size = m_number_of_vertices * sizeof(glm::vec3);
+	int colors_byte_size = m_number_of_vertices * sizeof(glm::vec3);
+	int tex_coords_byte_size = m_number_of_vertices * sizeof(glm::vec2);
 
 	glBindBuffer(GL_ARRAY_BUFFER, m_vertex_buffer);
 	glBufferData(GL_ARRAY_BUFFER, positions_byte_size + colors_byte_size + tex_coords_byte_size, nullptr, GL_STATIC_DRAW);
@@ -88,27 +89,24 @@ Face::Face(const std::string& morphable_model_directory)
 	m_shape_coefficients.resize(m_shape_std_dev.size(), 0.0f);
 	m_shape_coefficients_normalized.resize(m_shape_std_dev.size());
 
-	CHECK_CUDA_ERROR(cudaMalloc(&m_shape_basis_gpu, shape_basis.size() * sizeof(float)));
-	CHECK_CUDA_ERROR(cudaMalloc(&m_shape_coefficients_gpu, m_shape_coefficients.size() * sizeof(float)));
-	CHECK_CUDA_ERROR(cudaMemcpy(m_shape_basis_gpu, shape_basis.data(), shape_basis.size() * sizeof(float), cudaMemcpyHostToDevice));
+	m_shape_basis_gpu = util::DeviceArray<float>(shape_basis);
+	m_shape_coefficients_gpu = util::DeviceArray<float>(m_shape_coefficients.size());
 
 	auto albedo_basis = loadModelData(morphable_model_directory + "/AlbedoBasis_modified.matrix", true);
 	m_albedo_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationAlbedo.vec", false);
 	m_albedo_coefficients.resize(m_albedo_std_dev.size(), 0.0f);
 	m_albedo_coefficients_normalized.resize(m_albedo_std_dev.size());
 
-	CHECK_CUDA_ERROR(cudaMalloc(&m_albedo_basis_gpu, albedo_basis.size() * sizeof(float)));
-	CHECK_CUDA_ERROR(cudaMalloc(&m_albedo_coefficients_gpu, m_albedo_coefficients.size() * sizeof(float)));
-	CHECK_CUDA_ERROR(cudaMemcpy(m_albedo_basis_gpu, albedo_basis.data(), albedo_basis.size() * sizeof(float), cudaMemcpyHostToDevice));
+	m_albedo_basis_gpu = util::DeviceArray<float>(albedo_basis);
+	m_albedo_coefficients_gpu = util::DeviceArray<float>(m_albedo_coefficients.size());
 
 	auto expression_basis = loadModelData(morphable_model_directory + "/ExpressionBasis_modified.matrix", true);
 	m_expression_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationExpression.vec", false);
 	m_expression_coefficients.resize(m_expression_std_dev.size(), 0.0f);
 	m_expression_coefficients_normalized.resize(m_expression_std_dev.size());
 
-	CHECK_CUDA_ERROR(cudaMalloc(&m_expression_basis_gpu, expression_basis.size() * sizeof(float)));
-	CHECK_CUDA_ERROR(cudaMalloc(&m_expression_coefficients_gpu, m_expression_coefficients.size() * sizeof(float)));
-	CHECK_CUDA_ERROR(cudaMemcpy(m_expression_basis_gpu, expression_basis.data(), expression_basis.size() * sizeof(float), cudaMemcpyHostToDevice));
+	m_expression_basis_gpu = util::DeviceArray<float>(expression_basis);
+	m_expression_coefficients_gpu = util::DeviceArray<float>(expression_basis.size());
 
 	cublasCreate(&m_cublas);
 }
@@ -129,38 +127,6 @@ Face::~Face()
 	{
 		glDeleteVertexArrays(1, &m_vertex_array);
 		m_vertex_array = 0;
-	}
-	if (m_average_face_gpu)
-	{
-		CHECK_CUDA_ERROR(cudaFree(m_average_face_gpu));
-	}
-	if (m_current_face_gpu)
-	{
-		CHECK_CUDA_ERROR(cudaFree(m_current_face_gpu));
-	}
-	if (m_shape_basis_gpu)
-	{
-		CHECK_CUDA_ERROR(cudaFree(m_shape_basis_gpu));
-	}
-	if (m_shape_coefficients_gpu)
-	{
-		CHECK_CUDA_ERROR(cudaFree(m_shape_coefficients_gpu));
-	}
-	if (m_albedo_basis_gpu)
-	{
-		CHECK_CUDA_ERROR(cudaFree(m_albedo_basis_gpu));
-	}
-	if (m_albedo_coefficients_gpu)
-	{
-		CHECK_CUDA_ERROR(cudaFree(m_albedo_coefficients_gpu));
-	}
-	if (m_expression_basis_gpu)
-	{
-		CHECK_CUDA_ERROR(cudaFree(m_expression_basis_gpu));
-	}
-	if (m_expression_coefficients_gpu)
-	{
-		CHECK_CUDA_ERROR(cudaFree(m_expression_coefficients_gpu));
 	}
 	cublasDestroy(m_cublas);
 }
@@ -185,35 +151,39 @@ void Face::computeFace()
 		m_expression_coefficients_normalized[i] = m_expression_coefficients[i] * m_expression_std_dev[i];
 	}
 
-	CHECK_CUDA_ERROR(cudaMemcpy(m_shape_coefficients_gpu, m_shape_coefficients_normalized.data(), shape_number_of_coefficients * sizeof(float), cudaMemcpyHostToDevice));
-	CHECK_CUDA_ERROR(cudaMemcpy(m_albedo_coefficients_gpu, m_albedo_coefficients_normalized.data(), albedo_number_of_coefficients * sizeof(float), cudaMemcpyHostToDevice));
-	CHECK_CUDA_ERROR(cudaMemcpy(m_expression_coefficients_gpu, m_expression_coefficients_normalized.data(), expression_number_of_coefficients * sizeof(float), cudaMemcpyHostToDevice));
-	CHECK_CUDA_ERROR(cudaMemcpy(m_current_face_gpu, m_average_face_gpu, m_number_of_vertices * sizeof(glm::vec3) * 2, cudaMemcpyHostToDevice));
+	util::copy(m_shape_coefficients_gpu, m_shape_coefficients_normalized, shape_number_of_coefficients);
+	util::copy(m_albedo_coefficients_gpu, m_albedo_coefficients_normalized, albedo_number_of_coefficients);
+	util::copy(m_expression_coefficients_gpu, m_expression_coefficients_normalized, expression_number_of_coefficients);
+	util::copy(m_current_face_gpu, m_average_face_gpu, m_average_face_gpu.getSize());
 
 	float alpha = 1.0f;
 	float beta = 1.0f;
 	int m = 3 * m_number_of_vertices;
 	int n = shape_number_of_coefficients;
-	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_shape_basis_gpu, m, m_shape_coefficients_gpu, 1, &beta, m_current_face_gpu, 1);
+	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_shape_basis_gpu.getPtr(), m, m_shape_coefficients_gpu.getPtr(), 1, &beta,
+		reinterpret_cast<float*>(m_current_face_gpu.getPtr()), 1);
 
 	n = albedo_number_of_coefficients;
-	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_albedo_basis_gpu, m, m_albedo_coefficients_gpu, 1, &beta, m_current_face_gpu + m, 1);
+	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_albedo_basis_gpu.getPtr(), m, m_albedo_coefficients_gpu.getPtr(), 1, &beta,
+		reinterpret_cast<float*>(m_current_face_gpu.getPtr()) + m, 1);
 
 	n = expression_number_of_coefficients;
-	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_expression_basis_gpu, m, m_expression_coefficients_gpu, 1, &beta, m_current_face_gpu, 1);
+	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_expression_basis_gpu.getPtr(), m, m_expression_coefficients_gpu.getPtr(), 1, &beta,
+		reinterpret_cast<float*>(m_current_face_gpu.getPtr()), 1);
 }
 
 void Face::updateVertexBuffer()
 {
-	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterBuffer(&m_resource, m_vertex_buffer, cudaGraphicsRegisterFlagsWriteDiscard));
+	cudaGraphicsResource* resource{ nullptr };
+	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterBuffer(&resource, m_vertex_buffer, cudaGraphicsRegisterFlagsWriteDiscard));
 
-	CHECK_CUDA_ERROR(cudaGraphicsMapResources(1, &m_resource, 0));
+	CHECK_CUDA_ERROR(cudaGraphicsMapResources(1, &resource, 0));
 	void* vertex_buffer_ptr;
 	size_t size;
-	CHECK_CUDA_ERROR(cudaGraphicsResourceGetMappedPointer(&vertex_buffer_ptr, &size, m_resource));
-	CHECK_CUDA_ERROR(cudaMemcpy(vertex_buffer_ptr, m_current_face_gpu, m_number_of_vertices * sizeof(glm::vec3) * 2, cudaMemcpyDeviceToDevice));
+	CHECK_CUDA_ERROR(cudaGraphicsResourceGetMappedPointer(&vertex_buffer_ptr, &size, resource));
+	CHECK_CUDA_ERROR(cudaMemcpy(vertex_buffer_ptr, m_current_face_gpu.getPtr(), m_number_of_vertices * sizeof(glm::vec3) * 2, cudaMemcpyDeviceToDevice));
 
-	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &m_resource, 0));
+	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &resource, 0));
 }
 
 void Face::draw(const GLSLProgram& program) const

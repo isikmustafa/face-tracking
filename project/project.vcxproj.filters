@@ -77,5 +77,6 @@
     <ClInclude Include="..\src\window.h" />
     <ClInclude Include="..\src\face.h" />
     <ClInclude Include="..\src\tracker.h" />
+    <ClInclude Include="..\src\device_array.h" />
   </ItemGroup>
 </Project>

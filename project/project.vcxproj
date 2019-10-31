@@ -32,6 +32,7 @@
     <ClInclude Include="..\3rd\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\3rd\imgui\imstb_textedit.h" />
     <ClInclude Include="..\3rd\imgui\imstb_truetype.h" />
+    <ClInclude Include="..\src\device_array.h" />
     <ClInclude Include="..\src\device_util.h" />
     <ClInclude Include="..\src\face.h" />
     <ClInclude Include="..\src\glsl_program.h" />
