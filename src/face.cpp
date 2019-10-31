@@ -174,15 +174,16 @@ void Face::computeFace()
 
 void Face::updateVertexBuffer()
 {
-	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterBuffer(&m_resource, m_vertex_buffer, cudaGraphicsRegisterFlagsWriteDiscard));
+	cudaGraphicsResource* resource{ nullptr };
+	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterBuffer(&resource, m_vertex_buffer, cudaGraphicsRegisterFlagsWriteDiscard));
 
-	CHECK_CUDA_ERROR(cudaGraphicsMapResources(1, &m_resource, 0));
+	CHECK_CUDA_ERROR(cudaGraphicsMapResources(1, &resource, 0));
 	void* vertex_buffer_ptr;
 	size_t size;
-	CHECK_CUDA_ERROR(cudaGraphicsResourceGetMappedPointer(&vertex_buffer_ptr, &size, m_resource));
+	CHECK_CUDA_ERROR(cudaGraphicsResourceGetMappedPointer(&vertex_buffer_ptr, &size, resource));
 	CHECK_CUDA_ERROR(cudaMemcpy(vertex_buffer_ptr, m_current_face_gpu.getPtr(), m_number_of_vertices * sizeof(glm::vec3) * 2, cudaMemcpyDeviceToDevice));
 
-	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &m_resource, 0));
+	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &resource, 0));
 }
 
 void Face::draw(const GLSLProgram& program) const

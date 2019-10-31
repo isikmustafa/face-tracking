@@ -41,8 +41,7 @@ private:
 	unsigned int m_number_of_vertices{ 0 };
 	unsigned int m_number_of_indices{ 0 };
 
-	//CUDA-GL interop for buffer object.
-	cudaGraphicsResource* m_resource{ nullptr };
+	//Face vertex and color data.
 	util::DeviceArray<glm::vec3> m_average_face_gpu;
 	util::DeviceArray<glm::vec3> m_current_face_gpu;
 
