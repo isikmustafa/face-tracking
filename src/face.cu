@@ -31,9 +31,9 @@ __global__ void compute(int number_of_vertices, int number_of_faces, glm::vec3* 
 
 void Face::computeNormals() {
 	const int number_of_faces = m_number_of_indices / 3;
-	int blockSize = 256;
-	int numBlocks = (number_of_faces + blockSize - 1) / blockSize;
-	compute<<<numBlocks, blockSize>>>(
+	int block_size = 256;
+	int num_blocks = (number_of_faces + block_size - 1) / block_size;
+	compute<<<num_blocks, block_size>>>(
 		m_number_of_vertices,
 		number_of_faces,
 		reinterpret_cast<glm::vec3*>(m_current_face_gpu.getPtr()),
