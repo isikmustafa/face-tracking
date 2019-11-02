@@ -50,7 +50,7 @@ private:
 	//Face vertex and color data.
 	util::DeviceArray<glm::vec3> m_average_face_gpu;
 	util::DeviceArray<glm::vec3> m_current_face_gpu;
-	util::DeviceArray<glm::vec3> m_faces_gpu;
+	util::DeviceArray<glm::ivec3> m_faces_gpu;
 
 	//cuBLAS
 	cublasHandle_t m_cublas;

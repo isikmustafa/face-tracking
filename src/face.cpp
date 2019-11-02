@@ -2,7 +2,6 @@
 #include "glsl_program.h"
 #include "util.h"
 
-#include <math.h>
 #include <assert.h>
 #include <fstream>
 #include <iostream>
@@ -21,7 +20,6 @@ Face::Face(const std::string& morphable_model_directory)
 
 	std::vector<glm::vec3> positions(m_number_of_vertices);
 	std::vector<glm::vec3> colors(m_number_of_vertices);
-	std::vector<glm::vec3> normals(m_number_of_vertices);
 	std::vector<glm::vec2> tex_coords(m_number_of_vertices);
 
 	m_sh_coefficients.resize(9, 0.0f);
@@ -29,7 +27,7 @@ Face::Face(const std::string& morphable_model_directory)
 
 	m_number_of_indices = 3 * number_of_faces;
 	std::vector<unsigned int> indices(m_number_of_indices);
-	std::vector<glm::vec3> faces(number_of_faces);
+	std::vector<glm::ivec3> faces(number_of_faces);
 	constexpr float mesh_scale = 1 / 1000000.0f;
 	for (int i = 0; i < m_number_of_vertices; ++i)
 	{
@@ -57,11 +55,11 @@ Face::Face(const std::string& morphable_model_directory)
 	m_average_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 3);
 	m_current_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 3);
 
+	m_average_face_gpu.memset(0); //Important thing is normals are initialized to 0. Whenever we copy m_average_face_gpu to m_current_face_gpu, normals will be reset.
 	util::copy(m_average_face_gpu, positions, m_number_of_vertices);
 	util::copy(m_average_face_gpu, colors, m_number_of_vertices, m_number_of_vertices, 0);
-	util::copy(m_average_face_gpu, normals, m_number_of_vertices, m_number_of_vertices * 2, 0);
 
-	m_faces_gpu = util::DeviceArray<glm::vec3>(number_of_faces);
+	m_faces_gpu = util::DeviceArray<glm::ivec3>(number_of_faces);
 	util::copy(m_faces_gpu, faces, number_of_faces);
 
 	glGenVertexArrays(1, &m_vertex_array);
