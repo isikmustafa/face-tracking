@@ -47,6 +47,9 @@
     <None Include="..\src\shader\window.frag" />
     <None Include="..\src\shader\window.vert" />
   </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="..\src\face.cu" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5998E701-8D4C-4FF5-9A7C-57391BE7AFE6}</ProjectGuid>
     <RootNamespace>project</RootNamespace>

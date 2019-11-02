@@ -2,6 +2,7 @@
 #include "glsl_program.h"
 #include "util.h"
 
+#include <math.h>
 #include <assert.h>
 #include <fstream>
 #include <iostream>
@@ -20,9 +21,15 @@ Face::Face(const std::string& morphable_model_directory)
 
 	std::vector<glm::vec3> positions(m_number_of_vertices);
 	std::vector<glm::vec3> colors(m_number_of_vertices);
+	std::vector<glm::vec3> normals(m_number_of_vertices);
 	std::vector<glm::vec2> tex_coords(m_number_of_vertices);
+
+	m_sh_coefficients.resize(9, 0.0f);
+	m_sh_coefficients[0] = 0.5;
+
 	m_number_of_indices = 3 * number_of_faces;
 	std::vector<unsigned int> indices(m_number_of_indices);
+	std::vector<glm::vec3> faces(number_of_faces);
 	constexpr float mesh_scale = 1 / 1000000.0f;
 	for (int i = 0; i < m_number_of_vertices; ++i)
 	{
@@ -39,16 +46,23 @@ Face::Face(const std::string& morphable_model_directory)
 	{
 		file >> int_dummy;
 		file >> indices[i * 3] >> indices[i * 3 + 1] >> indices[i * 3 + 2];
+		faces[i].x = indices[i * 3];
+		faces[i].y = indices[i * 3 + 1];
+		faces[i].z = indices[i * 3 + 2];
 	}
 	file.close();
 
-	//We will only update position and color of vertices. In order not to copy the constant texture coordinates,
+	//We will only update position, color and normals of vertices. In order not to copy the constant texture coordinates,
 	//we dont allocate memory for them.
-	m_average_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 2);
-	m_current_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 2);
+	m_average_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 3);
+	m_current_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 3);
 
 	util::copy(m_average_face_gpu, positions, m_number_of_vertices);
 	util::copy(m_average_face_gpu, colors, m_number_of_vertices, m_number_of_vertices, 0);
+	util::copy(m_average_face_gpu, normals, m_number_of_vertices, m_number_of_vertices * 2, 0);
+
+	m_faces_gpu = util::DeviceArray<glm::vec3>(number_of_faces);
+	util::copy(m_faces_gpu, faces, number_of_faces);
 
 	glGenVertexArrays(1, &m_vertex_array);
 	glGenBuffers(1, &m_vertex_buffer);
@@ -62,21 +76,25 @@ Face::Face(const std::string& morphable_model_directory)
 
 	int positions_byte_size = m_number_of_vertices * sizeof(glm::vec3);
 	int colors_byte_size = m_number_of_vertices * sizeof(glm::vec3);
+	int normals_byte_size = m_number_of_vertices * sizeof(glm::vec3);
 	int tex_coords_byte_size = m_number_of_vertices * sizeof(glm::vec2);
 
 	glBindBuffer(GL_ARRAY_BUFFER, m_vertex_buffer);
-	glBufferData(GL_ARRAY_BUFFER, positions_byte_size + colors_byte_size + tex_coords_byte_size, nullptr, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, positions_byte_size + colors_byte_size + normals_byte_size + tex_coords_byte_size, nullptr, GL_STATIC_DRAW);
 	//Only copy texture coordinate information via glBufferSubData. Others will be updated via cuda-gl interop.
-	glBufferSubData(GL_ARRAY_BUFFER, positions_byte_size + colors_byte_size, tex_coords_byte_size, tex_coords.data());
+	glBufferSubData(GL_ARRAY_BUFFER, positions_byte_size + colors_byte_size + normals_byte_size, tex_coords_byte_size, tex_coords.data());
 	updateVertexBuffer();
 
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
 	glEnableVertexAttribArray(2);
+	glEnableVertexAttribArray(3);
+
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)0);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)(positions_byte_size));
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (GLvoid*)(positions_byte_size + colors_byte_size));
-
+	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)(positions_byte_size + colors_byte_size));
+	glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (GLvoid*)(positions_byte_size + colors_byte_size + normals_byte_size));
+	
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_index_buffer);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_number_of_indices * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 
@@ -170,6 +188,8 @@ void Face::computeFace()
 	n = expression_number_of_coefficients;
 	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_expression_basis_gpu.getPtr(), m, m_expression_coefficients_gpu.getPtr(), 1, &beta,
 		reinterpret_cast<float*>(m_current_face_gpu.getPtr()), 1);
+
+	computeNormals();
 }
 
 void Face::updateVertexBuffer()
@@ -181,7 +201,7 @@ void Face::updateVertexBuffer()
 	void* vertex_buffer_ptr;
 	size_t size;
 	CHECK_CUDA_ERROR(cudaGraphicsResourceGetMappedPointer(&vertex_buffer_ptr, &size, resource));
-	CHECK_CUDA_ERROR(cudaMemcpy(vertex_buffer_ptr, m_current_face_gpu.getPtr(), m_number_of_vertices * sizeof(glm::vec3) * 2, cudaMemcpyDeviceToDevice));
+	CHECK_CUDA_ERROR(cudaMemcpy(vertex_buffer_ptr, m_current_face_gpu.getPtr(), m_number_of_vertices * sizeof(glm::vec3) * 3, cudaMemcpyDeviceToDevice));
 
 	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &resource, 0));
 }

@@ -44,9 +44,9 @@
     <ClCompile Include="..\src\glsl_program.cpp" />
     <ClCompile Include="..\src\quad.cpp" />
     <ClCompile Include="..\src\window.cpp" />
-    <ClCompile Include="..\src\face.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\tracker.cpp" />
+    <ClCompile Include="..\src\face.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\3rd\imgui\imgui.h">
@@ -78,5 +78,8 @@
     <ClInclude Include="..\src\face.h" />
     <ClInclude Include="..\src\tracker.h" />
     <ClInclude Include="..\src\device_array.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="..\src\face.cu" />
   </ItemGroup>
 </Project>

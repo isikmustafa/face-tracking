@@ -8,6 +8,7 @@
 #include <vector>
 #include <cuda_gl_interop.h>
 #include <cublas_v2.h>
+#include <cuda_runtime.h>
 
 class GLSLProgram;
 
@@ -23,6 +24,8 @@ public:
 	~Face();
 
 	void computeFace();
+	void computeNormals();
+
 	//Copies m_average_face_gpu to content of m_vertex_buffer.
 	void updateVertexBuffer();
 	void draw(const GLSLProgram& program) const;
@@ -34,6 +37,9 @@ public:
 	std::vector<float>& getExpressionCoefficients() { return m_expression_coefficients; }
 	const std::vector<float>& getExpressionCoefficients() const { return m_expression_coefficients; }
 
+	std::vector<float>& getSHCoefficients() { return m_sh_coefficients; }
+	const std::vector<float>& getSHCoefficients() const { return m_sh_coefficients; }
+
 private:
 	GLuint m_vertex_array{ 0 };
 	GLuint m_vertex_buffer{ 0 };
@@ -44,6 +50,7 @@ private:
 	//Face vertex and color data.
 	util::DeviceArray<glm::vec3> m_average_face_gpu;
 	util::DeviceArray<glm::vec3> m_current_face_gpu;
+	util::DeviceArray<glm::vec3> m_faces_gpu;
 
 	//cuBLAS
 	cublasHandle_t m_cublas;
@@ -68,6 +75,8 @@ private:
 	std::vector<float> m_expression_coefficients_normalized;
 	util::DeviceArray<float> m_expression_basis_gpu;
 	util::DeviceArray<float> m_expression_coefficients_gpu;
+
+	std::vector<float> m_sh_coefficients;
 
 private:
 	std::vector<float> loadModelData(const std::string& filename, bool is_basis);
