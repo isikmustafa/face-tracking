@@ -46,6 +46,7 @@ private:
 	GLuint m_index_buffer{ 0 };
 	unsigned int m_number_of_vertices{ 0 };
 	unsigned int m_number_of_indices{ 0 };
+	cudaGraphicsResource* m_resource{ nullptr };
 
 	//Face vertex and color data.
 	util::DeviceArray<glm::vec3> m_average_face_gpu;
