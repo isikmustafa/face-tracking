@@ -79,6 +79,8 @@ Face::Face(const std::string& morphable_model_directory)
 
 	glBindBuffer(GL_ARRAY_BUFFER, m_vertex_buffer);
 	glBufferData(GL_ARRAY_BUFFER, positions_byte_size + colors_byte_size + normals_byte_size + tex_coords_byte_size, nullptr, GL_STATIC_DRAW);
+	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterBuffer(&m_resource, m_vertex_buffer, cudaGraphicsRegisterFlagsWriteDiscard));
+
 	//Only copy texture coordinate information via glBufferSubData. Others will be updated via cuda-gl interop.
 	glBufferSubData(GL_ARRAY_BUFFER, positions_byte_size + colors_byte_size + normals_byte_size, tex_coords_byte_size, tex_coords.data());
 	updateVertexBuffer();
@@ -192,16 +194,13 @@ void Face::computeFace()
 
 void Face::updateVertexBuffer()
 {
-	cudaGraphicsResource* resource{ nullptr };
-	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterBuffer(&resource, m_vertex_buffer, cudaGraphicsRegisterFlagsWriteDiscard));
-
-	CHECK_CUDA_ERROR(cudaGraphicsMapResources(1, &resource, 0));
+	CHECK_CUDA_ERROR(cudaGraphicsMapResources(1, &m_resource, 0));
 	void* vertex_buffer_ptr;
 	size_t size;
-	CHECK_CUDA_ERROR(cudaGraphicsResourceGetMappedPointer(&vertex_buffer_ptr, &size, resource));
+	CHECK_CUDA_ERROR(cudaGraphicsResourceGetMappedPointer(&vertex_buffer_ptr, &size, m_resource));
 	CHECK_CUDA_ERROR(cudaMemcpy(vertex_buffer_ptr, m_current_face_gpu.getPtr(), m_number_of_vertices * sizeof(glm::vec3) * 3, cudaMemcpyDeviceToDevice));
 
-	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &resource, 0));
+	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &m_resource, 0));
 }
 
 void Face::draw(const GLSLProgram& program) const

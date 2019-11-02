@@ -87,6 +87,12 @@ void Window::drawGui()
 		func();
 	}
 
+	ImGui::Separator();
+
+	size_t free, total;
+	CHECK_CUDA_ERROR(cudaMemGetInfo(&free, &total));
+	ImGui::Text("Free  GPU Memory: %.1f MB", free / (1024.0f * 1024.0f));
+	ImGui::Text("Total GPU Memory: %.1f MB", total / (1024.0f * 1024.0f));
 	ImGui::End();
 
 	//Render.
