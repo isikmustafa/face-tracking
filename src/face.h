@@ -24,6 +24,8 @@ public:
 	~Face();
 
 	void computeFace();
+	void computeNormals();
+
 	//Copies m_average_face_gpu to content of m_vertex_buffer.
 	void updateVertexBuffer();
 	void draw(const GLSLProgram& program) const;
@@ -78,5 +80,4 @@ private:
 
 private:
 	std::vector<float> loadModelData(const std::string& filename, bool is_basis);
-	void computeNormals();
 };
