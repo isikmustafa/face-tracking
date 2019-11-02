@@ -20,13 +20,11 @@ __global__ void compute(int number_of_vertices, int number_of_faces, glm::vec3* 
 
 		for (int i : { face.x, face.y, face.z })
 		{
-			const int position = i + 2 * number_of_vertices;
+			const int position = (i + 2 * number_of_vertices) * 3;
 
-			//atomicAdd(&ptr[position + 0], n[0]);
-			//atomicAdd(&ptr[position + 1], n[1]);
-			//atomicAdd(&ptr[position + 2], n[2]);
-
-			current_face[position] += n;
+			atomicAdd(&ptr[position + 0], n.x);
+			atomicAdd(&ptr[position + 1], n.y);
+			atomicAdd(&ptr[position + 2], n.z);
 		}
 	}
 }
@@ -35,7 +33,7 @@ void Face::computeNormals() {
 	const int number_of_faces = m_number_of_indices / 3;
 	int blockSize = 256;
 	int numBlocks = (number_of_faces + blockSize - 1) / blockSize;
-	compute <<<numBlocks, blockSize>>>(
+	compute<<<numBlocks, blockSize>>>(
 		m_number_of_vertices,
 		number_of_faces,
 		reinterpret_cast<glm::vec3*>(m_current_face_gpu.getPtr()),
