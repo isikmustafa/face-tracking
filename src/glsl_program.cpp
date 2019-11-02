@@ -114,7 +114,7 @@ void GLSLProgram::use() const
 	glUseProgram(m_program);
 }
 
-void GLSLProgram::setUniformIVar(const std::string& name, std::initializer_list<GLint> values) const
+void GLSLProgram::setUniformIVar(const std::string& name, const std::vector<GLfloat>& values) const
 {
 	auto begin = values.begin();
 
@@ -141,7 +141,7 @@ void GLSLProgram::setUniformIVar(const std::string& name, std::initializer_list<
 	}
 }
 
-void GLSLProgram::setUniformFVar(const std::string& name, std::initializer_list<GLfloat> values) const
+void GLSLProgram::setUniformFVar(const std::string& name, const std::vector<GLfloat>& values) const
 {
 	auto begin = values.begin();
 
@@ -168,12 +168,12 @@ void GLSLProgram::setUniformFVar(const std::string& name, std::initializer_list<
 	}
 }
 
+void GLSLProgram::setUniformFVVar(const std::string& name, const std::vector<GLfloat>& values) const
+{
+	glUniform1fv(glGetUniformLocation(m_program, name.c_str()), values.size(), values.data());
+}
+
 void GLSLProgram::setMat4(const std::string& name, const glm::mat4& matrix) const
 {
 	glUniformMatrix4fv(glGetUniformLocation(m_program, name.c_str()), 1, GL_FALSE, &matrix[0][0]);
-}
-
-void GLSLProgram::setUniformFVVar(const std::string& name, std::vector<GLfloat> values) const
-{
-	glUniform1fv(glGetUniformLocation(m_program, name.c_str()), values.size(), values.data());
 }
