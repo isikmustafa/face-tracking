@@ -18,7 +18,7 @@ int main()
 
 	const auto tracker = std::make_unique<Tracker>();
 	const auto menu = std::make_unique<Menu>(window, face);
-	const auto renderer = std::make_unique<Renderer>(window, face);
+	const auto renderer = std::make_unique<Renderer>(face);
 
 	menu->initialize();
 

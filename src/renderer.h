@@ -7,7 +7,7 @@
 class Renderer
 {
 public:
-	Renderer(const std::shared_ptr<Window>&, const std::shared_ptr<Face>&);
+	Renderer(const std::shared_ptr<Face>&);
 	void drawFace() const;
 
 private:
