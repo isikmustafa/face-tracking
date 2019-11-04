@@ -7,11 +7,13 @@
 #include <dlib/image_processing.h>
 #include <dlib/gui_widgets.h>
 
-/*
- * The main class for tracking face landmarks with a web cam support
- */
+#include "solver.h"
+
 class Tracker
 {
 public:
+	Tracker(const std::shared_ptr<Solver>&);
 	void start() const;
+private:
+	std::shared_ptr<Solver> m_solver;
 };

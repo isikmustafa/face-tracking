@@ -47,6 +47,8 @@
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\tracker.cpp" />
     <ClCompile Include="..\src\face.cpp" />
+    <ClCompile Include="..\src\renderer.cpp" />
+    <ClCompile Include="..\src\menu.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\3rd\imgui\imgui.h">
@@ -78,6 +80,11 @@
     <ClInclude Include="..\src\face.h" />
     <ClInclude Include="..\src\tracker.h" />
     <ClInclude Include="..\src\device_array.h" />
+    <ClInclude Include="..\src\renderer.h" />
+    <ClInclude Include="..\src\menu.h" />
+    <ClInclude Include="..\src\solver.h" />
+    <ClInclude Include="..\src\gauss_newton.h" />
+    <ClInclude Include="..\src\correspondences.h" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\src\face.cu" />

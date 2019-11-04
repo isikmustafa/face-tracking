@@ -12,7 +12,7 @@ struct cudaGraphicsResource;
 class Window
 {
 public:
-	Window(int gui_width, int screen_width, int screen_height);
+	Window();
 	Window(const Window&) = delete;
 	Window(Window&&) = delete;
 	Window& operator=(const Window&) = delete;
@@ -28,11 +28,12 @@ public:
 
 	GLFWwindow* getWindow() const { return m_window; }
 
+	static int m_screen_width;
+	static int m_screen_height;
+	static int m_gui_width;
+
 private:
 	//Regular window variables
 	GLFWwindow* m_window{ nullptr };
-	int m_screen_width;
-	int m_screen_height;
-	int m_gui_width;
 	std::vector<std::function<void()>> m_funcs;
 };
