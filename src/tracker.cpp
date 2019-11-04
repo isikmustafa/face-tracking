@@ -12,17 +12,10 @@ Tracker::Tracker() {
 	}
 }
 
-Correspondences Tracker::getCorrespondences()
+Correspondences Tracker::getCorrespondences(cv::Mat& frame)
 {
-	if (!m_camera.isOpened())
-		return Correspondences();
-
 	try {
-		cv::Mat temp;
-		if (!m_camera.read(temp))
-			return Correspondences();
-
-		dlib::cv_image<dlib::bgr_pixel> cimg(temp);
+		dlib::cv_image<dlib::bgr_pixel> cimg(frame);
 		std::vector<dlib::rectangle> faces = m_detector(cimg);
 
 		// Consider only one face for the processing

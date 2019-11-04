@@ -22,17 +22,22 @@ int main()
 
 	menu->initialize();
 
+	cv::VideoCapture camera(0);
+
 	while (!glfwWindowShouldClose(window->getWindow()))
 	{
 		glfwPollEvents();
 
-		auto correspondences = tracker->getCorrespondences();
-
-		solver->process(correspondences);
-
 		renderer->drawFace();
 		window->drawGui();
 		window->refresh();
+
+		cv::Mat frame;
+		if (!camera.read(frame)) continue;
+
+		auto correspondences = tracker->getCorrespondences(frame);
+
+		solver->process(correspondences);
 	}
 
 	return 0;

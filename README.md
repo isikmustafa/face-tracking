@@ -34,6 +34,6 @@ DLIB instruction
 3) Build one of the project example in VS to generate dlib_build folder
 
 References
-[A Morphable Model For The Synthesis Of 3D Faces](https://gravis.dmi.unibas.ch/publications/Sigg99/morphmod2.pdf)
-[Real-time Expression Transfer for Facial Reenactment](http://zollhoefer.com/papers/SGA2015_Face/paper.pdf)
-[Face2Face: Real-time Face Capture and Reenactment of RGB Videos](https://web.stanford.edu/~zollhoef/papers/CVPR2016_Face2Face/paper.pdf)
+* [A Morphable Model For The Synthesis Of 3D Faces](https://gravis.dmi.unibas.ch/publications/Sigg99/morphmod2.pdf)
+* [Real-time Expression Transfer for Facial Reenactment](http://zollhoefer.com/papers/SGA2015_Face/paper.pdf)
+* [Face2Face: Real-time Face Capture and Reenactment of RGB Videos](https://web.stanford.edu/~zollhoef/papers/CVPR2016_Face2Face/paper.pdf)

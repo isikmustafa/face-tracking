@@ -6,8 +6,8 @@
 Menu::Menu(const std::shared_ptr<Window>& window, const std::shared_ptr<Face>& face)
 	: m_window(window), m_face(face) {}
 
-void Menu::initialize() const {
-
+void Menu::initialize() const 
+{
 	auto& shape_coefficients = m_face->getShapeCoefficients();
 	auto shape_parameters_gui = [&shape_coefficients]()
 	{

@@ -11,10 +11,6 @@
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_glfw.h>
 
-int Window::m_gui_width = 240;
-int Window::m_screen_width = 1440;
-int Window::m_screen_height = 900;
-
 Window::Window()
 {
 	//Initialize GLFW

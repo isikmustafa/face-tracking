@@ -5,8 +5,8 @@
 #include <glm/ext/matrix_transform.inl>
 #include <utility>
 
-Renderer::Renderer(const std::shared_ptr<Face>& face) : m_face(face) {
-
+Renderer::Renderer(const std::shared_ptr<Face>& face) : m_face(face) 
+{
 	m_face_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/face.vert");
 	m_face_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/face.frag");
 	m_face_shader.link();
@@ -21,10 +21,11 @@ Renderer::Renderer(const std::shared_ptr<Face>& face) : m_face(face) {
 	m_face_shader.setMat4("projection", projection);
 }
 
-void Renderer::drawFace() const {
-
+void Renderer::drawFace() const 
+{
 	m_face_shader.use();
 	m_face_shader.setUniformFVVar("sh_coefficients", m_face->getSHCoefficients());
+
 	m_face->computeFace();
 	m_face->updateVertexBuffer();
 	m_face->draw(m_face_shader);

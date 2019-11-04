@@ -28,9 +28,9 @@ public:
 
 	GLFWwindow* getWindow() const { return m_window; }
 
-	static int m_screen_width;
-	static int m_screen_height;
-	static int m_gui_width;
+	const static int m_screen_width = 1440;
+	const static int m_screen_height = 900;
+	const static int m_gui_width= 240;
 
 private:
 	//Regular window variables

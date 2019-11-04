@@ -13,9 +13,8 @@ class Tracker
 {
 public:
 	Tracker();
-	Correspondences getCorrespondences();
+	Correspondences getCorrespondences(cv::Mat&);
 private:
-	cv::VideoCapture m_camera = cv::VideoCapture(0);
 	dlib::frontal_face_detector m_detector = dlib::get_frontal_face_detector();
 	dlib::shape_predictor m_pose_model;
 };
