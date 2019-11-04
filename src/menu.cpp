@@ -3,8 +3,8 @@
 #include "imgui.h"
 #include <utility>
 
-Menu::Menu(std::shared_ptr<Window> window, std::shared_ptr<Face> face)
-	: m_window(std::move(window)), m_face(std::move(face)) {}
+Menu::Menu(const std::shared_ptr<Window>& window, const std::shared_ptr<Face>& face)
+	: m_window(window), m_face(face) {}
 
 void Menu::initialize() const {
 

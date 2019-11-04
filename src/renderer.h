@@ -8,7 +8,7 @@ class Renderer
 {
 public:
 	Renderer(const std::shared_ptr<Window>&, const std::shared_ptr<Face>&);
-	void start() const;
+	void drawFace() const;
 
 private:
 	GLSLProgram m_face_shader;

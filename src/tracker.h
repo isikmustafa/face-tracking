@@ -7,13 +7,15 @@
 #include <dlib/image_processing.h>
 #include <dlib/gui_widgets.h>
 
-#include "solver.h"
+#include "correspondences.h"
 
 class Tracker
 {
 public:
-	Tracker(const std::shared_ptr<Solver>&);
-	void start() const;
+	Tracker();
+	Correspondences getCorrespondences();
 private:
-	std::shared_ptr<Solver> m_solver;
+	cv::VideoCapture m_camera = cv::VideoCapture(0);
+	dlib::frontal_face_detector m_detector = dlib::get_frontal_face_detector();
+	dlib::shape_predictor m_pose_model;
 };

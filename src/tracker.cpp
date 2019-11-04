@@ -1,59 +1,42 @@
 #include "tracker.h"
 #include <utility>
 
-Tracker::Tracker(const std::shared_ptr<Solver>& solver) : m_solver(std::move(solver)) {}
+Tracker::Tracker() {
+	dlib::deserialize("shape_predictor_68_face_landmarks.dat") >> m_pose_model;
+}
 
-void Tracker::start() const
+Correspondences Tracker::getCorrespondences()
 {
-	cv::VideoCapture cap(0);
-
-	if (!cap.isOpened())
-	{
-		std::cout << "Unable to connect to camera" << std::endl;
-		return;
+	if (!m_camera.isOpened()) {
+		return Correspondences();
 	}
 
-	dlib::image_window win;
-	dlib::frontal_face_detector detector = dlib::get_frontal_face_detector();
-	dlib::shape_predictor pose_model;
-	dlib::deserialize("shape_predictor_68_face_landmarks.dat") >> pose_model;
-
-	std::thread track([&cap, &win, &pose_model, &detector, this]() {
-		try
+	try
+	{
+		cv::Mat temp;
+		if (!m_camera.read(temp))
 		{
-			while (!win.is_closed())
-			{
-				// Grab a frame
-				cv::Mat temp;
-				if (!cap.read(temp))
-				{
-					break;
-				}
-
-				dlib::cv_image<dlib::bgr_pixel> cimg(temp);
-				std::vector<dlib::rectangle> faces = detector(cimg);
-
-				std::vector<dlib::full_object_detection> shapes;
-				for (const auto& face : faces)
-				{
-					shapes.push_back(pose_model(cimg, face));
-				}
-
-				win.clear_overlay();
-				win.set_image(cimg);
-				win.add_overlay(dlib::render_face_detections(shapes));
-
-				Correspondences correspondences;
-				m_solver->process(correspondences);
-			}
+			return Correspondences();
 		}
-		catch (dlib::serialization_error& e)
+
+		dlib::cv_image<dlib::bgr_pixel> cimg(temp);
+		std::vector<dlib::rectangle> faces = m_detector(cimg);
+
+		std::vector<dlib::full_object_detection> shapes;
+		for (const auto& face : faces)
 		{
-			std::cout << std::endl << e.what() << std::endl;
+			shapes.push_back(m_pose_model(cimg, face));
 		}
-		catch (std::exception& e)
-		{
-			std::cout << e.what() << std::endl;
-		}
-	});
+
+	}
+	catch (dlib::serialization_error& e)
+	{
+		std::cout << std::endl << e.what() << std::endl;
+	}
+	catch (std::exception& e)
+	{
+		std::cout << e.what() << std::endl;
+	}
+
+	return Correspondences();
 }

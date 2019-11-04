@@ -6,7 +6,7 @@
 class Menu
 {
 public:
-	explicit Menu(std::shared_ptr<Window>, std::shared_ptr<Face>);
+	explicit Menu(const std::shared_ptr<Window>&, const std::shared_ptr<Face>&);
 	void initialize() const;
 private:
 	std::shared_ptr<Window> m_window;
