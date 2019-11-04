@@ -6,7 +6,7 @@
 #include <utility>
 #include <GLFW/glfw3.h>
 
-Renderer::Renderer(std::shared_ptr<Window> window, std::shared_ptr<Face> face)
+Renderer::Renderer(const std::shared_ptr<Window> &window, const std::shared_ptr<Face> &face)
 	: m_window(std::move(window)), m_face(std::move(face)) {
 
 	m_face_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/face.vert");
