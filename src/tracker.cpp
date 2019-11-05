@@ -1,7 +1,8 @@
 #include "tracker.h"
 #include <utility>
 
-Tracker::Tracker() {
+Tracker::Tracker() 
+{
 	try
 	{
 		dlib::deserialize("shape_predictor_68_face_landmarks.dat") >> m_pose_model;
@@ -14,7 +15,8 @@ Tracker::Tracker() {
 
 Correspondences Tracker::getCorrespondences(cv::Mat& frame)
 {
-	try {
+	try 
+	{
 		dlib::cv_image<dlib::bgr_pixel> cimg(frame);
 		std::vector<dlib::rectangle> faces = m_detector(cimg);
 

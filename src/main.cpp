@@ -28,7 +28,10 @@ int main()
 	{
 		glfwPollEvents();
 
+		face->computeFace();
+
 		renderer->drawFace();
+
 		window->drawGui();
 		window->refresh();
 
@@ -37,7 +40,7 @@ int main()
 
 		auto correspondences = tracker->getCorrespondences(frame);
 
-		solver->process(correspondences);
+		solver->solve(correspondences);
 	}
 
 	return 0;
