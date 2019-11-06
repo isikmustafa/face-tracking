@@ -1,12 +1,15 @@
 #include "menu.h"
 
-#include "imgui.h"
 #include <utility>
+#include <imgui.h>
+#include <imgui_impl_opengl3.h>
+#include <imgui_impl_glfw.h>
 
 Menu::Menu(const std::shared_ptr<Window>& window, const std::shared_ptr<Face>& face)
-	: m_window(window), m_face(face) {}
+	: m_window(window), m_face(face)
+{}
 
-void Menu::initialize() const 
+void Menu::initialize()
 {
 	auto& shape_coefficients = m_face->getShapeCoefficients();
 	auto shape_parameters_gui = [&shape_coefficients]()
@@ -18,7 +21,7 @@ void Menu::initialize() const
 		ImGui::SliderFloat("Shape4", &shape_coefficients[3], -5.0f, 5.0f);
 		ImGui::SliderFloat("Shape5", &shape_coefficients[4], -5.0f, 5.0f);
 	};
-	m_window->attachToGui(std::move(shape_parameters_gui));
+	attach(std::move(shape_parameters_gui));
 
 	auto& albedo_coefficients = m_face->getAlbedoCoefficients();
 	auto albedo_parameters_gui = [&albedo_coefficients]()
@@ -30,7 +33,7 @@ void Menu::initialize() const
 		ImGui::SliderFloat("Albedo4", &albedo_coefficients[3], -5.0f, 5.0f);
 		ImGui::SliderFloat("Albedo5", &albedo_coefficients[4], -5.0f, 5.0f);
 	};
-	m_window->attachToGui(std::move(albedo_parameters_gui));
+	attach(std::move(albedo_parameters_gui));
 
 	auto& expression_coefficients = m_face->getExpressionCoefficients();
 	auto expression_parameters_gui = [&expression_coefficients]()
@@ -42,7 +45,7 @@ void Menu::initialize() const
 		ImGui::SliderFloat("Expression4", &expression_coefficients[3], 0.0f, 1.0f);
 		ImGui::SliderFloat("Expression5", &expression_coefficients[4], 0.0f, 1.0f);
 	};
-	m_window->attachToGui(std::move(expression_parameters_gui));
+	attach(std::move(expression_parameters_gui));
 
 	auto& sh_coefficients = m_face->getSHCoefficients();
 	auto sh_parameters_gui = [&sh_coefficients]()
@@ -58,5 +61,42 @@ void Menu::initialize() const
 		ImGui::SliderFloat("zx", &sh_coefficients[7], -1.0f, 1.0f);
 		ImGui::SliderFloat("x2-y2", &sh_coefficients[8], -1.0f, 1.0f);
 	};
-	m_window->attachToGui(std::move(sh_parameters_gui));
+	attach(std::move(sh_parameters_gui));
+}
+
+void Menu::attach(std::function<void()> func)
+{
+	m_funcs.push_back(std::move(func));
+}
+
+void Menu::draw() const
+{
+	//Start a new frame.
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	//Position and size of window.
+	ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(Window::m_gui_width, Window::m_screen_height), ImGuiCond_FirstUseEver);
+
+	//Any application code here
+	ImGui::Begin("Menu", nullptr, ImGuiWindowFlags_MenuBar);
+
+	for (auto& func : m_funcs)
+	{
+		func();
+	}
+
+	ImGui::Separator();
+
+	size_t free, total;
+	CHECK_CUDA_ERROR(cudaMemGetInfo(&free, &total));
+	ImGui::Text("Free  GPU Memory: %.1f MB", free / (1024.0f * 1024.0f));
+	ImGui::Text("Total GPU Memory: %.1f MB", total / (1024.0f * 1024.0f));
+	ImGui::End();
+
+	//Render.
+	ImGui::Render();
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }

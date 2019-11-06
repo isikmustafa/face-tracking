@@ -19,8 +19,6 @@ public:
 	Window& operator=(Window&&) = delete;
 	~Window();
 
-	void attachToGui(std::function<void()> func);
-	void drawGui();
 	void refresh();
 	bool queryKey(int key, int condition) const;
 	void setWindowTitle(const std::string& title) const;
@@ -35,5 +33,4 @@ public:
 private:
 	//Regular window variables
 	GLFWwindow* m_window{ nullptr };
-	std::vector<std::function<void()>> m_funcs;
 };

@@ -59,43 +59,6 @@ Window::~Window()
 	ImGui::DestroyContext();
 }
 
-void Window::attachToGui(std::function<void()> func)
-{
-	m_funcs.push_back(std::move(func));
-}
-
-void Window::drawGui()
-{
-	//Start a new frame.
-	ImGui_ImplOpenGL3_NewFrame();
-	ImGui_ImplGlfw_NewFrame();
-	ImGui::NewFrame();
-
-	//Position and size of window.
-	ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_FirstUseEver);
-	ImGui::SetNextWindowSize(ImVec2(m_gui_width, m_screen_height), ImGuiCond_FirstUseEver);
-
-	//Any application code here
-	ImGui::Begin("Menu", nullptr, ImGuiWindowFlags_MenuBar);
-
-	for (auto& func : m_funcs)
-	{
-		func();
-	}
-
-	ImGui::Separator();
-
-	size_t free, total;
-	CHECK_CUDA_ERROR(cudaMemGetInfo(&free, &total));
-	ImGui::Text("Free  GPU Memory: %.1f MB", free / (1024.0f * 1024.0f));
-	ImGui::Text("Total GPU Memory: %.1f MB", total / (1024.0f * 1024.0f));
-	ImGui::End();
-
-	//Render.
-	ImGui::Render();
-	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-}
-
 //Call this function after you're done with all your draw calls.
 void Window::refresh()
 {

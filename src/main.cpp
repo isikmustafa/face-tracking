@@ -32,7 +32,7 @@ int main()
 
 		renderer->drawFace();
 
-		window->drawGui();
+		menu->draw();
 		window->refresh();
 
 		cv::Mat frame;
