@@ -1,7 +1,6 @@
 #include "application.h"
 
 #include <imgui.h>
-#include <glad/glad.h>
 #include <glm/ext/matrix_clip_space.inl>
 #include <glm/ext/matrix_transform.inl>
 #include <utility>
@@ -14,7 +13,7 @@ constexpr glm::ivec2 kGuiSize(240, kScreenHeight);
 static std::string kMorphableModelPath("../MorphableModel/");
 
 Application::Application()
-	: m_window(kGuiSize.x, kScreenWidth, 900)
+	: m_window(kGuiSize.x, kScreenWidth, kScreenHeight)
 	, m_face(std::make_shared<Face>(kMorphableModelPath))
 	, m_solver(m_face)
 	, m_tracker()
@@ -92,13 +91,13 @@ void Application::initMenuWidgets()
 	{
 		ImGui::CollapsingHeader("Spherical Harmonics Parameters", ImGuiTreeNodeFlags_DefaultOpen);
 		ImGui::SliderFloat("Ambient", &sh_coefficients[0], -1.0f, 1.0f);
-		ImGui::SliderFloat("X", &sh_coefficients[1], -1.0f, 1.0f);
-		ImGui::SliderFloat("Y", &sh_coefficients[2], -1.0f, 1.0f);
-		ImGui::SliderFloat("Z", &sh_coefficients[3], -1.0f, 1.0f);
+		ImGui::SliderFloat("y", &sh_coefficients[1], -1.0f, 1.0f);
+		ImGui::SliderFloat("z", &sh_coefficients[2], -1.0f, 1.0f);
+		ImGui::SliderFloat("x", &sh_coefficients[3], -1.0f, 1.0f);
 		ImGui::SliderFloat("xy", &sh_coefficients[4], -1.0f, 1.0f);
 		ImGui::SliderFloat("yz", &sh_coefficients[5], -1.0f, 1.0f);
-		ImGui::SliderFloat("-x2-y2+2z2", &sh_coefficients[6], -1.0f, 1.0f);
-		ImGui::SliderFloat("zx", &sh_coefficients[7], -1.0f, 1.0f);
+		ImGui::SliderFloat("3z2 - 1", &sh_coefficients[6], -1.0f, 1.0f);
+		ImGui::SliderFloat("xz", &sh_coefficients[7], -1.0f, 1.0f);
 		ImGui::SliderFloat("x2-y2", &sh_coefficients[8], -1.0f, 1.0f);
 	};
 	m_menu.attach(std::move(sh_parameters_gui));
