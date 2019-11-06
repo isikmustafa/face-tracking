@@ -17,10 +17,10 @@ int main()
 	const auto solver = std::make_shared<GaussNewton>(face);
 
 	const auto tracker = std::make_unique<Tracker>();
-	const auto menu = std::make_unique<Menu>(window, face);
+	const auto menu = std::make_unique<Menu>(glm::ivec2(0, 0), glm::ivec2(Window::m_gui_width, Window::m_screen_height));
 	const auto renderer = std::make_unique<Renderer>(face);
 
-	menu->initialize();
+	menu->initializeWidgets(face);
 
 	cv::VideoCapture camera(0);
 

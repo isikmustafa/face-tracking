@@ -5,13 +5,14 @@
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_glfw.h>
 
-Menu::Menu(const std::shared_ptr<Window>& window, const std::shared_ptr<Face>& face)
-	: m_window(window), m_face(face)
+Menu::Menu(const glm::ivec2& position, const glm::ivec2& size)
+	: m_position(position)
+	, m_size(size)
 {}
 
-void Menu::initialize()
+void Menu::initializeWidgets(const std::shared_ptr<Face>& face)
 {
-	auto& shape_coefficients = m_face->getShapeCoefficients();
+	auto& shape_coefficients = face->getShapeCoefficients();
 	auto shape_parameters_gui = [&shape_coefficients]()
 	{
 		ImGui::CollapsingHeader("Shape Parameters", ImGuiTreeNodeFlags_DefaultOpen);
@@ -23,7 +24,7 @@ void Menu::initialize()
 	};
 	attach(std::move(shape_parameters_gui));
 
-	auto& albedo_coefficients = m_face->getAlbedoCoefficients();
+	auto& albedo_coefficients = face->getAlbedoCoefficients();
 	auto albedo_parameters_gui = [&albedo_coefficients]()
 	{
 		ImGui::CollapsingHeader("Albedo Parameters", ImGuiTreeNodeFlags_DefaultOpen);
@@ -35,7 +36,7 @@ void Menu::initialize()
 	};
 	attach(std::move(albedo_parameters_gui));
 
-	auto& expression_coefficients = m_face->getExpressionCoefficients();
+	auto& expression_coefficients = face->getExpressionCoefficients();
 	auto expression_parameters_gui = [&expression_coefficients]()
 	{
 		ImGui::CollapsingHeader("Expression Parameters", ImGuiTreeNodeFlags_DefaultOpen);
@@ -47,7 +48,7 @@ void Menu::initialize()
 	};
 	attach(std::move(expression_parameters_gui));
 
-	auto& sh_coefficients = m_face->getSHCoefficients();
+	auto& sh_coefficients = face->getSHCoefficients();
 	auto sh_parameters_gui = [&sh_coefficients]()
 	{
 		ImGui::CollapsingHeader("Spherical Harmonics Parameters", ImGuiTreeNodeFlags_DefaultOpen);
@@ -77,8 +78,8 @@ void Menu::draw() const
 	ImGui::NewFrame();
 
 	//Position and size of window.
-	ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_FirstUseEver);
-	ImGui::SetNextWindowSize(ImVec2(Window::m_gui_width, Window::m_screen_height), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowPos(ImVec2(m_position.x, m_position.y), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(m_size.x, m_size.y), ImGuiCond_FirstUseEver);
 
 	//Any application code here
 	ImGui::Begin("Menu", nullptr, ImGuiWindowFlags_MenuBar);

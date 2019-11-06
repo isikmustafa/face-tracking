@@ -5,7 +5,8 @@
 #include <glm/ext/matrix_transform.inl>
 #include <utility>
 
-Renderer::Renderer(const std::shared_ptr<Face>& face) : m_face(face)
+Renderer::Renderer(const std::shared_ptr<Face>& face)
+	: m_face(face)
 {
 	m_face_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/face.vert");
 	m_face_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/face.frag");

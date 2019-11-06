@@ -6,14 +6,14 @@
 class Menu
 {
 public:
-	explicit Menu(const std::shared_ptr<Window>& window, const std::shared_ptr<Face>& face);
+	Menu(const glm::ivec2& position, const glm::ivec2& size);
 
-	void initialize();
+	void initializeWidgets(const std::shared_ptr<Face>& face);
 	void attach(std::function<void()> func);
 	void draw() const;
 
 private:
+	glm::ivec2 m_position;
+	glm::ivec2 m_size;
 	std::vector<std::function<void()>> m_funcs;
-	std::shared_ptr<Window> m_window;
-	std::shared_ptr<Face> m_face;
 };
