@@ -20,7 +20,9 @@
     <ClCompile Include="..\src\face.cpp" />
     <ClCompile Include="..\src\glsl_program.cpp" />
     <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="..\src\menu.cpp" />
     <ClCompile Include="..\src\quad.cpp" />
+    <ClCompile Include="..\src\renderer.cpp" />
     <ClCompile Include="..\src\tracker.cpp" />
     <ClCompile Include="..\src\window.cpp" />
   </ItemGroup>
@@ -32,11 +34,16 @@
     <ClInclude Include="..\3rd\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\3rd\imgui\imstb_textedit.h" />
     <ClInclude Include="..\3rd\imgui\imstb_truetype.h" />
+    <ClInclude Include="..\src\correspondences.h" />
     <ClInclude Include="..\src\device_array.h" />
     <ClInclude Include="..\src\device_util.h" />
     <ClInclude Include="..\src\face.h" />
+    <ClInclude Include="..\src\gauss_newton.h" />
     <ClInclude Include="..\src\glsl_program.h" />
+    <ClInclude Include="..\src\menu.h" />
     <ClInclude Include="..\src\quad.h" />
+    <ClInclude Include="..\src\renderer.h" />
+    <ClInclude Include="..\src\solver.h" />
     <ClInclude Include="..\src\tracker.h" />
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\window.h" />

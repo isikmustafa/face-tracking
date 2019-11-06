@@ -3,8 +3,7 @@
 #include "window.h"
 #include "util.h"
 
-#include <assert.h>
-#include <iostream>
+#include <cassert>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -12,10 +11,7 @@
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_glfw.h>
 
-Window::Window(int gui_width, int screen_width, int screen_height)
-	: m_gui_width(gui_width)
-	, m_screen_width(screen_width)
-	, m_screen_height(screen_height)
+Window::Window()
 {
 	//Initialize GLFW
 	if (!glfwInit())
@@ -44,7 +40,7 @@ Window::Window(int gui_width, int screen_width, int screen_height)
 
 	//OpenGL settings
 	glEnable(GL_DEPTH_TEST);
-	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glViewport(m_gui_width, 0, m_screen_width, m_screen_height);
 
 	//ImGui inits.
