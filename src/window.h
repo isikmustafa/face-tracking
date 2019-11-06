@@ -12,7 +12,8 @@ struct cudaGraphicsResource;
 class Window
 {
 public:
-	Window();
+	//Non-movable and non-copyable
+	Window(int gui_width, int screen_width, int screen_height);
 	Window(const Window&) = delete;
 	Window(Window&&) = delete;
 	Window& operator=(const Window&) = delete;
@@ -24,13 +25,15 @@ public:
 	void setWindowTitle(const std::string& title) const;
 	void getCursorPosition(double& x, double& y) const;
 
-	GLFWwindow* getWindow() const { return m_window; }
-
-	const static int m_screen_width = 1440;
-	const static int m_screen_height = 900;
-	const static int m_gui_width= 240;
+	GLFWwindow* getGLFWWindow() const { return m_window; }
+	int getScreenWidth() const { return m_screen_width; }
+	int getScreenHeight() const { return m_screen_height; }
+	int getGuiWidth() const { return m_gui_width; }
 
 private:
 	//Regular window variables
 	GLFWwindow* m_window{ nullptr };
+	const int m_screen_width;
+	const int m_screen_height;
+	const int m_gui_width;
 };

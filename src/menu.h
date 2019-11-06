@@ -16,5 +16,3 @@ private:
 	glm::ivec2 m_size;
 	std::vector<std::function<void()>> m_funcs;
 };
-
-void initializeMenuWidgets(Menu& menu, Face& face);

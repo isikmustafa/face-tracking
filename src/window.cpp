@@ -11,7 +11,10 @@
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_glfw.h>
 
-Window::Window()
+Window::Window(int gui_width, int screen_width, int screen_height)
+	: m_gui_width(gui_width)
+	, m_screen_width(screen_width)
+	, m_screen_height(screen_height)
 {
 	//Initialize GLFW
 	if (!glfwInit())
