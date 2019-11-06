@@ -2,8 +2,7 @@
 
 #include <glm/glm.hpp>
 
-class Correspondences
+struct Correspondences
 {
-public:
 	std::vector<glm::vec2> target;
 };
