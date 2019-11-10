@@ -37,6 +37,7 @@ void Application::run()
 		m_window.refresh();
 
 		cv::Mat frame;
+
 		if (!m_camera.read(frame))
 		{
 			continue;
@@ -44,7 +45,7 @@ void Application::run()
 
 		auto correspondences = m_tracker.getCorrespondences(frame);
 
-		m_solver.solve(correspondences);
+		m_solver.solve(correspondences.getPoints());
 	}
 }
 

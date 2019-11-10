@@ -9,7 +9,7 @@ public:
 	Solver(const std::shared_ptr<Face>&);
 
 	virtual ~Solver() = default;
-	virtual void solve(Correspondences&) = 0;
+	virtual void solve(std::vector<Point>) = 0;
 
 protected:
 	std::shared_ptr<Face> m_face;

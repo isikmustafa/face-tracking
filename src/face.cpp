@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <fstream>
 #include <iostream>
+#include "correspondences.h"
 
 Face::Face(const std::string& morphable_model_directory)
 {
@@ -50,6 +51,11 @@ Face::Face(const std::string& morphable_model_directory)
 	}
 	file.close();
 
+	for (auto id : Correspondences::getPriorIds())
+	{
+		Correspondences::addPriorPosition(positions[id]);
+	}
+
 	//We will only update position, color and normals of vertices. In order not to copy the constant texture coordinates,
 	//we dont allocate memory for them.
 	m_average_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 3);
@@ -94,7 +100,7 @@ Face::Face(const std::string& morphable_model_directory)
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)(positions_byte_size));
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)(positions_byte_size + colors_byte_size));
 	glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (GLvoid*)(positions_byte_size + colors_byte_size + normals_byte_size));
-	
+
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_index_buffer);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_number_of_indices * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 

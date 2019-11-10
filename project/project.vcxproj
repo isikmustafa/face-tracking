@@ -18,6 +18,7 @@
     <ClCompile Include="..\3rd\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\3rd\imgui\imgui_widgets.cpp" />
     <ClCompile Include="..\src\application.cpp" />
+    <ClCompile Include="..\src\correspondences.cpp" />
     <ClCompile Include="..\src\face.cpp" />
     <ClCompile Include="..\src\glsl_program.cpp" />
     <ClCompile Include="..\src\main.cpp" />
