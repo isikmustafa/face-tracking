@@ -13,9 +13,10 @@ class Tracker
 {
 public:
 	Tracker();
-	Correspondences getCorrespondences(cv::Mat& frame);
+	Correspondences getCorrespondences(cv::Mat&);
 
 private:
 	dlib::frontal_face_detector m_detector = dlib::get_frontal_face_detector();
 	dlib::shape_predictor m_pose_model;
+	dlib::image_window m_window;
 };

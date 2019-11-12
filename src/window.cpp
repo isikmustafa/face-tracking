@@ -29,6 +29,7 @@ Window::Window(int gui_width, int screen_width, int screen_height)
 	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
 	m_window = glfwCreateWindow(m_screen_width + m_gui_width, m_screen_height, "Face2Face", nullptr, nullptr);
+
 	if (!m_window)
 	{
 		throw std::runtime_error("GLFW could not create the window");

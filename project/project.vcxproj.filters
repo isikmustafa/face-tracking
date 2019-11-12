@@ -49,6 +49,7 @@
     <ClCompile Include="..\src\face.cpp" />
     <ClCompile Include="..\src\menu.cpp" />
     <ClCompile Include="..\src\application.cpp" />
+    <ClCompile Include="..\src\correspondences.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\3rd\imgui\imgui.h">
