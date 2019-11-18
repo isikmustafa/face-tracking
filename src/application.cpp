@@ -1,9 +1,14 @@
 #include "application.h"
 
 #include <imgui.h>
-#include <glm/ext/matrix_clip_space.inl>
-#include <glm/ext/matrix_transform.inl>
+#include <glm/gtx/euler_angles.hpp>
+#include <glm/ext/matrix_clip_space.hpp>
+#include <glm/ext/matrix_transform.hpp>
 #include <utility>
+
+/*#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>*/
 
 constexpr int kScreenWidth = 1440;
 constexpr int kScreenHeight = 900;
@@ -14,8 +19,8 @@ static std::string kMorphableModelPath("../MorphableModel/");
 
 Application::Application()
 	: m_window(kGuiSize.x, kScreenWidth, kScreenHeight)
-	, m_face(std::make_shared<Face>(kMorphableModelPath))
-	, m_solver(m_face)
+	, m_face(kMorphableModelPath)
+	, m_solver()
 	, m_tracker()
 	, m_menu(kGuiPosition, kGuiSize)
 	, m_camera(0)
@@ -30,28 +35,28 @@ void Application::run()
 	{
 		glfwPollEvents();
 
-		m_face->computeFace();
+		m_face.computeFace();
 
 		drawFace();
 		m_menu.draw();
 		m_window.refresh();
 
 		cv::Mat frame;
+		//frame = cv::imread("C:/Users/Mustafa/Desktop/average_face.png", cv::IMREAD_COLOR);
 
-		if (!m_camera.read(frame))
+		/*if (!m_camera.read(frame))
 		{
 			continue;
 		}
 
-		auto correspondences = m_tracker.getCorrespondences(frame);
-
-		m_solver.solve(correspondences.getPoints());
+		auto sparse_features = m_tracker.getSparseFeatures(frame);
+		m_solver.solve(sparse_features, m_face);*/
 	}
 }
 
 void Application::initMenuWidgets()
 {
-	auto& shape_coefficients = m_face->getShapeCoefficients();
+	auto& shape_coefficients = m_face.getShapeCoefficients();
 	auto shape_parameters_gui = [&shape_coefficients]()
 	{
 		ImGui::CollapsingHeader("Shape Parameters", ImGuiTreeNodeFlags_DefaultOpen);
@@ -63,7 +68,7 @@ void Application::initMenuWidgets()
 	};
 	m_menu.attach(std::move(shape_parameters_gui));
 
-	auto& albedo_coefficients = m_face->getAlbedoCoefficients();
+	auto& albedo_coefficients = m_face.getAlbedoCoefficients();
 	auto albedo_parameters_gui = [&albedo_coefficients]()
 	{
 		ImGui::CollapsingHeader("Albedo Parameters", ImGuiTreeNodeFlags_DefaultOpen);
@@ -75,7 +80,7 @@ void Application::initMenuWidgets()
 	};
 	m_menu.attach(std::move(albedo_parameters_gui));
 
-	auto& expression_coefficients = m_face->getExpressionCoefficients();
+	auto& expression_coefficients = m_face.getExpressionCoefficients();
 	auto expression_parameters_gui = [&expression_coefficients]()
 	{
 		ImGui::CollapsingHeader("Expression Parameters", ImGuiTreeNodeFlags_DefaultOpen);
@@ -87,7 +92,7 @@ void Application::initMenuWidgets()
 	};
 	m_menu.attach(std::move(expression_parameters_gui));
 
-	auto& sh_coefficients = m_face->getSHCoefficients();
+	auto& sh_coefficients = m_face.getSHCoefficients();
 	auto sh_parameters_gui = [&sh_coefficients]()
 	{
 		ImGui::CollapsingHeader("Spherical Harmonics Parameters", ImGuiTreeNodeFlags_DefaultOpen);
@@ -122,14 +127,10 @@ void Application::initFaceShader()
 	m_face_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/face.frag");
 	m_face_shader.link();
 
-	//TODO: When we implement optimization, model parameters should be inside the Face class.
-	const auto model = glm::scale(glm::mat4(1.0f), glm::vec3(10.0f));
-	//TODO: When we implement optimization, camera pose and camera intrinsics should be defined in a camera class or another container.
-	const auto view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	const auto projection = glm::perspective(45.0f, static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 100.0f);
+	const auto view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.4f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	const auto projection = glm::perspectiveRH_NO(glm::radians(45.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f);
 
 	m_face_shader.use();
-	m_face_shader.setMat4("model", model);
 	m_face_shader.setMat4("view", view);
 	m_face_shader.setMat4("projection", projection);
 }
@@ -137,8 +138,9 @@ void Application::initFaceShader()
 void Application::drawFace()
 {
 	m_face_shader.use();
-	m_face_shader.setUniformFVVar("sh_coefficients", m_face->getSHCoefficients());
+	m_face_shader.setMat4("model", m_face.computeModelMatrix());
+	m_face_shader.setUniformFVVar("sh_coefficients", m_face.getSHCoefficients());
 
-	m_face->updateVertexBuffer();
-	m_face->draw(m_face_shader);
+	m_face.updateVertexBuffer();
+	m_face.draw(m_face_shader);
 }

@@ -49,7 +49,8 @@
     <ClCompile Include="..\src\face.cpp" />
     <ClCompile Include="..\src\menu.cpp" />
     <ClCompile Include="..\src\application.cpp" />
-    <ClCompile Include="..\src\correspondences.cpp" />
+    <ClCompile Include="..\src\gauss_newton_solver.cpp" />
+    <ClCompile Include="..\src\prior_sparse_features.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\3rd\imgui\imgui.h">
@@ -82,10 +83,9 @@
     <ClInclude Include="..\src\tracker.h" />
     <ClInclude Include="..\src\device_array.h" />
     <ClInclude Include="..\src\menu.h" />
-    <ClInclude Include="..\src\solver.h" />
-    <ClInclude Include="..\src\gauss_newton.h" />
-    <ClInclude Include="..\src\correspondences.h" />
     <ClInclude Include="..\src\application.h" />
+    <ClInclude Include="..\src\gauss_newton_solver.h" />
+    <ClInclude Include="..\src\prior_sparse_features.h" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\src\face.cu" />
