@@ -127,11 +127,14 @@ void Application::initFaceShader()
 	m_face_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/face.frag");
 	m_face_shader.link();
 
-	const auto view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.4f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	const auto projection = glm::perspectiveRH_NO(glm::radians(45.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f);
 
+	std::cout << projection[0][0] << "," << projection[1][0] << "," << projection[2][0] << "," << projection[3][0] << std::endl;
+	std::cout << projection[0][1] << "," << projection[1][1] << "," << projection[2][1] << "," << projection[3][1] << std::endl;
+	std::cout << projection[0][2] << "," << projection[1][2] << "," << projection[2][2] << "," << projection[3][2] << std::endl;
+	std::cout << projection[0][3] << "," << projection[1][3] << "," << projection[2][3] << "," << projection[3][3] << std::endl;
+
 	m_face_shader.use();
-	m_face_shader.setMat4("view", view);
 	m_face_shader.setMat4("projection", projection);
 }
 

@@ -9,7 +9,6 @@ out vec3 frag_albedo;
 out vec3 frag_normal;
 
 uniform mat4 model;
-uniform mat4 view;
 uniform mat4 projection;
 
 void main()
@@ -17,5 +16,5 @@ void main()
     frag_albedo = color;
 	frag_normal = normalize(normal);
 
-    gl_Position = projection * view * model * vec4(position, 1.0f);
+    gl_Position = projection * model * vec4(position, 1.0f);
 }
