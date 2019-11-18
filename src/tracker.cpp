@@ -13,9 +13,9 @@ Tracker::Tracker()
 	}
 }
 
-Correspondences Tracker::getCorrespondences(cv::Mat& frame)
+std::vector<glm::vec2> Tracker::getSparseFeatures(const cv::Mat& frame)
 {
-	Correspondences correspondences;
+	std::vector<glm::vec2> sparse_features;
 
 	try
 	{
@@ -24,7 +24,9 @@ Correspondences Tracker::getCorrespondences(cv::Mat& frame)
 
 		// Consider only one face for the processing
 		if (faces.empty())
-			return correspondences;
+		{
+			return sparse_features;
+		}
 
 		dlib::full_object_detection shape = m_pose_model(cimg, faces[0]);
 
@@ -33,15 +35,15 @@ Correspondences Tracker::getCorrespondences(cv::Mat& frame)
 
 		for (unsigned long i = 1; i <= 59; ++i)
 		{
-			dlib::point point = shape.part(i);
+			const dlib::point& point = shape.part(i);
 			circles.emplace_back(point, 2, color);
-			correspondences.addFeaturePoint(glm::vec2(point.x(), point.y()));
+			sparse_features.emplace_back(glm::vec2(point.x(), point.y()));
 		}
 
-		m_window.clear_overlay();
-		m_window.set_image(cimg);
+		//m_window.clear_overlay();
+		//m_window.set_image(cimg);
 
-		m_window.add_overlay(circles);
+		//m_window.add_overlay(circles);
 		//m_window.add_overlay(render_face_detections(shape));
 	}
 	catch (std::exception& e)
@@ -49,5 +51,5 @@ Correspondences Tracker::getCorrespondences(cv::Mat& frame)
 		std::cout << e.what() << std::endl;
 	}
 
-	return correspondences;
+	return sparse_features;
 }

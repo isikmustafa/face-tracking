@@ -1,13 +1,17 @@
 #include "face.h"
 #include "glsl_program.h"
 #include "util.h"
+#include "prior_sparse_features.h"
 
 #include <assert.h>
 #include <fstream>
 #include <iostream>
-#include "correspondences.h"
+#include <glm/gtx/euler_angles.hpp>
 
 Face::Face(const std::string& morphable_model_directory)
+	: m_sh_coefficients(9, 0.0f)
+	, m_rotation_coefficients(0.0f)
+	, m_translation_coefficients(0.0f)
 {
 	std::ifstream file(morphable_model_directory + "/averageMesh.off");
 	std::string str_dummy;
@@ -23,7 +27,6 @@ Face::Face(const std::string& morphable_model_directory)
 	std::vector<glm::vec3> colors(m_number_of_vertices);
 	std::vector<glm::vec2> tex_coords(m_number_of_vertices);
 
-	m_sh_coefficients.resize(9, 0.0f);
 	m_sh_coefficients[0] = 0.5;
 
 	m_number_of_indices = 3 * number_of_faces;
@@ -51,9 +54,9 @@ Face::Face(const std::string& morphable_model_directory)
 	}
 	file.close();
 
-	for (auto id : Correspondences::getPriorIds())
+	for (auto id : PriorSparseFeatures::getPriorIds())
 	{
-		Correspondences::addPriorPosition(positions[id]);
+		PriorSparseFeatures::addPriorPosition(positions[id]);
 	}
 
 	//We will only update position, color and normals of vertices. In order not to copy the constant texture coordinates,
@@ -196,6 +199,14 @@ void Face::computeFace()
 		reinterpret_cast<float*>(m_current_face_gpu.getPtr()), 1);
 
 	computeNormals();
+}
+
+glm::mat4 Face::computeModelMatrix() const
+{
+	auto model_matrix = glm::orientate4(m_rotation_coefficients);
+	model_matrix[3] = glm::vec4(m_translation_coefficients, 1.0f);
+
+	return model_matrix;
 }
 
 void Face::updateVertexBuffer()

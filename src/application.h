@@ -4,7 +4,7 @@
 #include "face.h"
 #include "tracker.h"
 #include "menu.h"
-#include "gauss_newton.h"
+#include "gauss_newton_solver.h"
 
 #include <GLFW/glfw3.h>
 
@@ -17,8 +17,8 @@ public:
 
 private:
 	Window m_window;
-	std::shared_ptr<Face> m_face;
-	GaussNewton m_solver;
+	Face m_face;
+	GaussNewtonSolver m_solver;
 	Tracker m_tracker;
 	Menu m_menu;
 	cv::VideoCapture m_camera;

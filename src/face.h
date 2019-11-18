@@ -25,6 +25,7 @@ public:
 
 	void computeFace();
 	void computeNormals();
+	glm::mat4 computeModelMatrix() const;
 
 	//Copies m_average_face_gpu to content of m_vertex_buffer.
 	void updateVertexBuffer();
@@ -78,6 +79,10 @@ private:
 	util::DeviceArray<float> m_expression_coefficients_gpu;
 
 	std::vector<float> m_sh_coefficients;
+
+	//Pose parameters
+	glm::vec3 m_rotation_coefficients;
+	glm::vec3 m_translation_coefficients;
 
 private:
 	std::vector<float> loadModelData(const std::string& filename, bool is_basis);

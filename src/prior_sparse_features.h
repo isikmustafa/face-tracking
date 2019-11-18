@@ -4,37 +4,23 @@
 #include <utility>
 #include <vector>
 
-struct Point
-{
-	Point(glm::vec2 feature, glm::vec3 position) : m_feature(feature), m_position(position) {}
-
-	glm::vec2 m_feature;
-	glm::vec3 m_position;
-};
-
-class Correspondences
+class PriorSparseFeatures
 {
 public:
-	Correspondences() = default;
-	Correspondences(std::vector<glm::vec2> points) : m_feature_points(std::move(points)) {}
-
-	std::vector<Point> getPoints();
-	void addFeaturePoint(glm::vec2);
-
-	static void addPriorPosition(glm::vec3);
-	static std::vector<int> getPriorIds() { return m_prior_ids; };
+	static void addPriorPosition(const glm::vec3& position);
+	static const std::vector<int>& getPriorIds() { return m_prior_ids; };
+	static const std::vector<glm::vec3>& getPriorPositions() { return m_prior_positions; };
 
 private:
-	std::vector<glm::vec2> m_feature_points;
-
-	static std::vector<glm::vec3> m_prior_positions;
 	static std::vector<int> m_prior_ids;
+	static std::vector<glm::vec3> m_prior_positions;
 
 	// Static constructor
 	static class CreateIds
 	{
 	public:
-		CreateIds() {
+		CreateIds()
+		{
 			// Chin (1-16)
 			m_prior_ids.emplace_back(22428);
 			m_prior_ids.emplace_back(21945);
