@@ -10,7 +10,7 @@
 
 Face::Face(const std::string& morphable_model_directory)
 	: m_sh_coefficients(9, 0.0f)
-	, m_rotation_coefficients(0.0f)
+	, m_rotation_coefficients(0.0f, 0.0f, 0.0f)
 	, m_translation_coefficients(0.0f, 0.0f, -0.4f)
 {
 	std::ifstream file(morphable_model_directory + "/averageMesh.off");
@@ -207,6 +207,71 @@ glm::mat4 Face::computeModelMatrix() const
 	model_matrix[3] = glm::vec4(m_translation_coefficients, 1.0f);
 
 	return model_matrix;
+}
+
+void Face::computeRotatationDerivatives(glm::mat3& dRx, glm::mat3& dRy, glm::mat3& dRz) const
+{
+	float cos_z = glm::cos(m_rotation_coefficients.z);
+	float sin_z = glm::sin(m_rotation_coefficients.z);
+	float cos_x = glm::cos(m_rotation_coefficients.x);
+	float sin_x = glm::sin(m_rotation_coefficients.x);
+	float cos_y = glm::cos(m_rotation_coefficients.y);
+	float sin_y = glm::sin(m_rotation_coefficients.y);
+
+	//Derivate with respecto to angle x
+	dRx[0][0] = sin_z * cos_x * sin_y;
+	dRx[1][0] = sin_z * cos_x * cos_y;
+	dRx[2][0] = -sin_z * sin_x;
+
+	dRx[0][1] = -sin_y * sin_x;
+	dRx[1][1] = -cos_y * sin_x;
+	dRx[2][1] = -cos_x;
+
+	dRx[0][2] = cos_z * cos_x * sin_y;
+	dRx[1][2] = cos_z * cos_x * cos_y;
+	dRx[2][2] = -cos_z * sin_x;
+
+
+	//Derivate with respecto to angle y
+	dRy[0][0] = -cos_z * sin_y + sin_z * sin_x * cos_y;
+	dRy[1][0] = -cos_z * cos_y - sin_z * sin_x * sin_y;
+	dRy[2][0] = 0.0f;
+
+	dRy[0][1] = cos_y * cos_x;
+	dRy[1][1] = -sin_y * cos_x;
+	dRy[2][1] = 0.0f;
+
+	dRy[0][2] = sin_z * sin_y + cos_z * sin_x * cos_y;
+	dRy[1][2] = cos_y * sin_z - cos_z * sin_x * sin_y;
+	dRy[2][2] = 0.0f;
+
+
+	//Derivate with respecto to angle z
+	dRz[0][0] = -sin_z * cos_y + cos_z * sin_x * sin_y;
+	dRz[1][0] = sin_z * sin_y + cos_z * sin_x * cos_y;
+	dRz[2][0] = cos_z * cos_x;
+
+	dRz[0][1] = 0.0f;
+	dRz[1][1] = 0.0f;
+	dRz[2][1] = 0.0f;
+
+	dRz[0][2] = -cos_z * cos_y - sin_z * sin_x * sin_y;
+	dRz[1][2] = sin_y * cos_z - sin_z * sin_x * cos_y;
+	dRz[2][2] = -sin_z * cos_x;
+
+	/*
+	rot[0][0] = cos_z * cos_y + sin_z * sin_x * sin_y;
+	rot[1][0] = -cos_z * sin_y + sin_z * sin_x * cos_y;
+	rot[2][0] = sin_z * cos_x;
+
+	rot[0][1] = sin_y * cos_x;
+	rot[1][1] = cos_y * cos_x;
+	rot[2][1] = -sin_x;
+
+	rot[0][2] = -sin_z * cos_y + cos_z * sin_x * sin_y;
+	rot[1][2] = sin_y * sin_z + cos_z * sin_x * cos_y;
+	rot[2][2] = cos_z * cos_x;
+	*/
 }
 
 void Face::updateVertexBuffer()

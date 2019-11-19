@@ -26,6 +26,7 @@ public:
 	void computeFace();
 	void computeNormals();
 	glm::mat4 computeModelMatrix() const;
+	void computeRotatationDerivatives(glm::mat3& dRx, glm::mat3& dRy, glm::mat3& dRz) const;
 
 	//Copies m_average_face_gpu to content of m_vertex_buffer.
 	void updateVertexBuffer();
