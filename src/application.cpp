@@ -10,7 +10,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>*/
 
-constexpr int kScreenWidth = 1440;
+constexpr int kScreenWidth = 1200;
 constexpr int kScreenHeight = 900;
 constexpr glm::ivec2 kGuiPosition(0, 0);
 constexpr glm::ivec2 kGuiSize(240, kScreenHeight);
@@ -24,6 +24,7 @@ Application::Application()
 	, m_tracker()
 	, m_menu(kGuiPosition, kGuiSize)
 	, m_camera(0)
+	, m_projection(glm::perspectiveRH_NO(glm::radians(45.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {}
 
 void Application::run()
@@ -44,13 +45,13 @@ void Application::run()
 		cv::Mat frame;
 		//frame = cv::imread("C:/Users/Mustafa/Desktop/average_face.png", cv::IMREAD_COLOR);
 
-		/*if (!m_camera.read(frame))
+		if (!m_camera.read(frame))
 		{
 			continue;
 		}
 
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
-		m_solver.solve(sparse_features, m_face);*/
+		//m_solver.solve(sparse_features, m_face, m_projection);
 	}
 }
 
@@ -127,15 +128,13 @@ void Application::initFaceShader()
 	m_face_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/face.frag");
 	m_face_shader.link();
 
-	const auto projection = glm::perspectiveRH_NO(glm::radians(45.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f);
-
-	std::cout << projection[0][0] << "," << projection[1][0] << "," << projection[2][0] << "," << projection[3][0] << std::endl;
-	std::cout << projection[0][1] << "," << projection[1][1] << "," << projection[2][1] << "," << projection[3][1] << std::endl;
-	std::cout << projection[0][2] << "," << projection[1][2] << "," << projection[2][2] << "," << projection[3][2] << std::endl;
-	std::cout << projection[0][3] << "," << projection[1][3] << "," << projection[2][3] << "," << projection[3][3] << std::endl;
+	std::cout << m_projection[0][0] << "," << m_projection[1][0] << "," << m_projection[2][0] << "," << m_projection[3][0] << std::endl;
+	std::cout << m_projection[0][1] << "," << m_projection[1][1] << "," << m_projection[2][1] << "," << m_projection[3][1] << std::endl;
+	std::cout << m_projection[0][2] << "," << m_projection[1][2] << "," << m_projection[2][2] << "," << m_projection[3][2] << std::endl;
+	std::cout << m_projection[0][3] << "," << m_projection[1][3] << "," << m_projection[2][3] << "," << m_projection[3][3] << std::endl;
 
 	m_face_shader.use();
-	m_face_shader.setMat4("projection", projection);
+	m_face_shader.setMat4("projection", m_projection);
 }
 
 void Application::drawFace()

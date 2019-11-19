@@ -96,7 +96,7 @@
     <ExecutablePath>$(ExecutablePath)</ExecutablePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>..\3rd\dlib; $(OPENCV_INCLUDE);..\3rd\glm;..\3rd\imgui\examples;..\3rd\imgui;..\3rd\glfw-3.3\include;..\3rd\glad\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\3rd\eigen-git-mirror;..\3rd\dlib;$(OPENCV_INCLUDE);..\3rd\glm;..\3rd\imgui\examples;..\3rd\imgui;..\3rd\glfw-3.3\include;..\3rd\glad\include;$(IncludePath)</IncludePath>
     <LibraryPath>..\3rd\glfw-3.3\lib\lib-vc2017-64bit;..\3rd\glad\lib;$(LibraryPath)</LibraryPath>
     <ReferencePath>$(ReferencePath)</ReferencePath>
     <ExecutablePath>$(ExecutablePath)</ExecutablePath>

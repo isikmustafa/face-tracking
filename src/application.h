@@ -7,6 +7,7 @@
 #include "gauss_newton_solver.h"
 
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 
 class Application
 {
@@ -23,6 +24,7 @@ private:
 	Menu m_menu;
 	cv::VideoCapture m_camera;
 	GLSLProgram m_face_shader;
+	glm::mat4 m_projection;
 
 private:
 	void initMenuWidgets();

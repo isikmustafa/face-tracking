@@ -7,3 +7,6 @@
 [submodule "3rd/dlib"]
 	path = 3rd/dlib
 	url = https://github.com/davisking/dlib.git
+[submodule "3rd/eigen-git-mirror"]
+	path = 3rd/eigen-git-mirror
+	url = https://github.com/eigenteam/eigen-git-mirror.git
