@@ -5,7 +5,6 @@
 
 void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection)
 {
-	//TODO(Wojtek): We should have 60 sparse features.
 	int numof_sparse_features = sparse_features.size();
 
 	//TODO(Wojtek): When we also optimize for expression and shape coefficients, prior_local_positions
@@ -20,19 +19,19 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 	//Some parts of jacobians are constants. That's why thet are intialized here only once.
 	//Do not touch them inside the for loops.
-	Eigen::Matrix<float, 2, 3> jacobian_hom;
-	jacobian_hom(0, 1) = 0.0f;
-	jacobian_hom(1, 0) = 0.0f;
-
-	Eigen::Matrix<float, 3, 3> jacobian_proj;
+	Eigen::Matrix<float, 2, 3> jacobian_proj;
 	jacobian_proj(0, 1) = 0.0f;
-	jacobian_proj(0, 2) = 0.0f;
 	jacobian_proj(1, 0) = 0.0f;
-	jacobian_proj(1, 1) = projection[1][1];
-	jacobian_proj(1, 2) = 0.0f;
-	jacobian_proj(2, 0) = 0.0f;
-	jacobian_proj(2, 1) = 0.0f;
-	jacobian_proj(2, 2) = -1.0f;
+
+	Eigen::Matrix<float, 3, 3> jacobian_world;
+	jacobian_world(0, 1) = 0.0f;
+	jacobian_world(0, 2) = 0.0f;
+	jacobian_world(1, 0) = 0.0f;
+	jacobian_world(1, 1) = projection[1][1];
+	jacobian_world(1, 2) = 0.0f;
+	jacobian_world(2, 0) = 0.0f;
+	jacobian_world(2, 1) = 0.0f;
+	jacobian_world(2, 2) = -1.0f;
 
 	Eigen::Matrix<float, 3, 1> jacobian_intrinsics;
 	jacobian_intrinsics(1, 0) = 0.0f;
@@ -49,10 +48,17 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	jacobian_pose(1, 5) = 0.0f;
 	jacobian_pose(2, 5) = 1.0f;
 
+	Eigen::Matrix<float, 3, 3> jacobian_local;
+
 	int number_of_gn_iterations = 5;
 	for (int iteration = 0; iteration < number_of_gn_iterations; ++iteration)
 	{
 		auto face_pose = face.computeModelMatrix();
+		jacobian_local <<
+			face_pose[0][0], face_pose[1][0], face_pose[2][0],
+			face_pose[0][1], face_pose[1][1], face_pose[2][1],
+			face_pose[0][2], face_pose[1][2], face_pose[2][2];
+
 		glm::mat3 drx, dry, drz;
 		face.computeRotationDerivatives(drx, dry, drz);
 
@@ -72,18 +78,18 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 			//Jacobian for homogenization (AKA division by w)
 			auto one_over_wp = 1.0f / proj_coord.w;
-			jacobian_hom(0, 0) = one_over_wp;
-			jacobian_hom(0, 2) = -proj_coord.x * one_over_wp * one_over_wp;
+			jacobian_proj(0, 0) = one_over_wp;
+			jacobian_proj(0, 2) = -proj_coord.x * one_over_wp * one_over_wp;
 
-			jacobian_hom(1, 1) = one_over_wp;
-			jacobian_hom(1, 2) = -proj_coord.y * one_over_wp * one_over_wp;
+			jacobian_proj(1, 1) = one_over_wp;
+			jacobian_proj(1, 2) = -proj_coord.y * one_over_wp * one_over_wp;
 
 			//Jacobian for projection
-			jacobian_proj(0, 0) = projection[0][0];
+			jacobian_world(0, 0) = projection[0][0];
 
 			//Jacobian for intrinsics
 			jacobian_intrinsics(0, 0) = world_coord.x;
-			jacobian.block<2, 1>(i * 2, 6) = jacobian_hom * jacobian_intrinsics;
+			jacobian.block<2, 1>(i * 2, 0) = jacobian_proj * jacobian_intrinsics;
 
 			//Derivative of world coordinates with respect to rotation coefficients
 			auto dx = drx * local_coord;
@@ -100,7 +106,16 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			jacobian_pose(1, 2) = dz[1];
 			jacobian_pose(2, 2) = dz[2];
 
-			jacobian.block<2, 6>(i * 2, 0) = jacobian_hom * jacobian_proj * jacobian_pose;
+			auto jacobian_proj_world = jacobian_proj * jacobian_world;
+			jacobian.block<2, 6>(i * 2, 1) = jacobian_proj_world * jacobian_pose;
+
+			//Derivative of world coordinates with respect to local coordinates.
+			//This is basically the rotation matrix.
+			auto jacobian_proj_world_local = jacobian_proj_world * jacobian_local;
+
+			//Derivative of local coordinates with respect to shape and expression parameters
+			//This is basically the corresponding (to unique vertices we have chosen) rows of basis matrices.
+			//TODO:
 		}
 
 		//Apply step and update poses
@@ -111,15 +126,15 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		Eigen::JacobiSVD<Eigen::MatrixXf> svd(jtj, Eigen::ComputeThinU | Eigen::ComputeThinV);
 		auto result = svd.solve(jtr);
 
-		rotation_coefficients.x -= result(0);
-		rotation_coefficients.y -= result(1);
-		rotation_coefficients.z -= result(2);
+		projection[0][0] -= result(0);
 
-		translation_coefficients.x -= result(3);
-		translation_coefficients.y -= result(4);
-		translation_coefficients.z -= result(5);
+		rotation_coefficients.x -= result(1);
+		rotation_coefficients.y -= result(2);
+		rotation_coefficients.z -= result(3);
 
-		projection[0][0] -= result(6);
+		translation_coefficients.x -= result(4);
+		translation_coefficients.y -= result(5);
+		translation_coefficients.z -= result(6);
 
 		/*
 		std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;

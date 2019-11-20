@@ -124,11 +124,6 @@ void Application::initFaceShader()
 	m_face_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/face.frag");
 	m_face_shader.link();
 
-	std::cout << m_projection[0][0] << "," << m_projection[1][0] << "," << m_projection[2][0] << "," << m_projection[3][0] << std::endl;
-	std::cout << m_projection[0][1] << "," << m_projection[1][1] << "," << m_projection[2][1] << "," << m_projection[3][1] << std::endl;
-	std::cout << m_projection[0][2] << "," << m_projection[1][2] << "," << m_projection[2][2] << "," << m_projection[3][2] << std::endl;
-	std::cout << m_projection[0][3] << "," << m_projection[1][3] << "," << m_projection[2][3] << "," << m_projection[3][3] << std::endl;
-
 	m_face_shader.use();
 	m_face_shader.setMat4("projection", m_projection);
 }
