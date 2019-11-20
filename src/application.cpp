@@ -6,10 +6,6 @@
 #include <glm/ext/matrix_transform.hpp>
 #include <utility>
 
-/*#include <opencv2/core.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/highgui.hpp>*/
-
 constexpr int kScreenWidth = 1200;
 constexpr int kScreenHeight = 900;
 constexpr glm::ivec2 kGuiPosition(0, 0);
@@ -24,7 +20,7 @@ Application::Application()
 	, m_tracker()
 	, m_menu(kGuiPosition, kGuiSize)
 	, m_camera(0)
-	, m_projection(glm::perspectiveRH_NO(glm::radians(45.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
+	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {}
 
 void Application::run()
@@ -43,7 +39,7 @@ void Application::run()
 		m_window.refresh();
 
 		cv::Mat frame;
-		//frame = cv::imread("C:/Users/Mustafa/Desktop/average_face.png", cv::IMREAD_COLOR);
+		//frame = cv::imread("C:/Users/Mustafa/Desktop/musti.jpg", cv::IMREAD_COLOR);
 
 		if (!m_camera.read(frame))
 		{
@@ -51,7 +47,7 @@ void Application::run()
 		}
 
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
-		//m_solver.solve(sparse_features, m_face, m_projection);
+		m_solver.solve(sparse_features, m_face, m_projection);
 	}
 }
 
