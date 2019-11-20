@@ -36,7 +36,7 @@ std::vector<glm::vec2> Tracker::getSparseFeatures(const cv::Mat& frame)
 		auto frame_size = frame.size();
 		auto two_over_width = 2.0f / static_cast<float>(frame_size.width);
 		auto two_over_height = 2.0f / static_cast<float>(frame_size.height);
-		for (unsigned long i = 1; i <= 59; ++i)
+		for (unsigned long i = 0; i < 60; ++i)
 		{
 			const dlib::point& point = shape.part(i);
 			//circles.emplace_back(point, 2, color);

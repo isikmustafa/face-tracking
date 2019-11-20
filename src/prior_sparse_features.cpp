@@ -2,7 +2,8 @@
 
 PriorSparseFeatures::PriorSparseFeatures()
 {
-	// Chin (1-16)
+	// Chin (0-16)
+	m_prior_ids.emplace_back(22270);
 	m_prior_ids.emplace_back(22428);
 	m_prior_ids.emplace_back(21945);
 	m_prior_ids.emplace_back(22225);
