@@ -3,11 +3,10 @@
 
 #include <Eigen/Dense>
 
-void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Face& face, const glm::mat4& projection)
+void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection)
 {
-	//TODO(Wojtek): We should have 60 sparse features..
+	//TODO(Wojtek): We should have 60 sparse features.
 	int numof_sparse_features = sparse_features.size();
-	std::cout << numof_sparse_features << std::endl;
 
 	//TODO(Wojtek): When we also optimize for expression and shape coefficients, prior_local_positions
 	//will not be valid since these are taken from vertices of the average face.
@@ -17,15 +16,38 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	auto& translation_coefficients = face.getTranslationCoefficients();
 
 	Eigen::VectorXf residuals(numof_sparse_features * 2);
-	Eigen::MatrixXf jacobian(numof_sparse_features * 2, 6);
-	Eigen::Matrix<float, 2, 3> jacobian_hom;
-	Eigen::Matrix<float, 3, 3> jacobian_proj;
-	Eigen::Matrix<float, 3, 6> jacobian_pose;
+	Eigen::MatrixXf jacobian(numof_sparse_features * 2, 7); //3+3+1 = 7 DoF for rotation, translation and intrinsics.
 
-	jacobian_proj <<
-		projection[0][0], 0.0f, 0.0f,
-		0.0f, projection[1][1], 0.0f,
-		0.0f, 0.0f, -1.0f;
+	//Some parts of jacobians are constants. That's why thet are intialized here only once.
+	//Do not touch them inside the for loops.
+	Eigen::Matrix<float, 2, 3> jacobian_hom;
+	jacobian_hom(0, 1) = 0.0f;
+	jacobian_hom(1, 0) = 0.0f;
+
+	Eigen::Matrix<float, 3, 3> jacobian_proj;
+	jacobian_proj(0, 1) = 0.0f;
+	jacobian_proj(0, 2) = 0.0f;
+	jacobian_proj(1, 0) = 0.0f;
+	jacobian_proj(1, 1) = projection[1][1];
+	jacobian_proj(1, 2) = 0.0f;
+	jacobian_proj(2, 0) = 0.0f;
+	jacobian_proj(2, 1) = 0.0f;
+	jacobian_proj(2, 2) = -1.0f;
+
+	Eigen::Matrix<float, 3, 1> jacobian_intrinsics;
+	jacobian_intrinsics(1, 0) = 0.0f;
+	jacobian_intrinsics(2, 0) = 0.0f;
+
+	Eigen::Matrix<float, 3, 6> jacobian_pose;
+	jacobian_pose(0, 3) = 1.0f;
+	jacobian_pose(1, 3) = 0.0f;
+	jacobian_pose(2, 3) = 0.0f;
+	jacobian_pose(0, 4) = 0.0f;
+	jacobian_pose(1, 4) = 1.0f;
+	jacobian_pose(2, 4) = 0.0f;
+	jacobian_pose(0, 5) = 0.0f;
+	jacobian_pose(1, 5) = 0.0f;
+	jacobian_pose(2, 5) = 1.0f;
 
 	int number_of_gn_iterations = 5;
 	for (int iteration = 0; iteration < number_of_gn_iterations; ++iteration)
@@ -34,8 +56,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		glm::mat3 drx, dry, drz;
 		face.computeRotationDerivatives(drx, dry, drz);
 
-		//Construct residuals
-		//TODO(Mustafa): Process this loop with OpenMP and compare.
+		//Construct residuals and jacobian
 		for (int i = 0; i < numof_sparse_features; ++i)
 		{
 			auto local_coord = prior_local_positions[i];
@@ -52,12 +73,17 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			//Jacobian for homogenization (AKA division by w)
 			auto one_over_wp = 1.0f / proj_coord.w;
 			jacobian_hom(0, 0) = one_over_wp;
-			jacobian_hom(0, 1) = 0.0f;
 			jacobian_hom(0, 2) = -proj_coord.x * one_over_wp * one_over_wp;
 
-			jacobian_hom(1, 0) = 0.0f;
 			jacobian_hom(1, 1) = one_over_wp;
 			jacobian_hom(1, 2) = -proj_coord.y * one_over_wp * one_over_wp;
+
+			//Jacobian for projection
+			jacobian_proj(0, 0) = projection[0][0];
+
+			//Jacobian for intrinsics
+			jacobian_intrinsics(0, 0) = world_coord.x;
+			jacobian.block<2, 1>(i * 2, 6) = jacobian_hom * jacobian_intrinsics;
 
 			//Derivative of world coordinates with respect to rotation coefficients
 			auto dx = drx * local_coord;
@@ -74,28 +100,16 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			jacobian_pose(1, 2) = dz[1];
 			jacobian_pose(2, 2) = dz[2];
 
-			jacobian_pose(0, 3) = 1.0f;
-			jacobian_pose(1, 3) = 0.0f;
-			jacobian_pose(2, 3) = 0.0f;
-			jacobian_pose(0, 4) = 0.0f;
-			jacobian_pose(1, 4) = 1.0f;
-			jacobian_pose(2, 4) = 0.0f;
-			jacobian_pose(0, 5) = 0.0f;
-			jacobian_pose(1, 5) = 0.0f;
-			jacobian_pose(2, 5) = 1.0f;
-
 			jacobian.block<2, 6>(i * 2, 0) = jacobian_hom * jacobian_proj * jacobian_pose;
 		}
 
-		// Apply step and update poses
+		//Apply step and update poses
 		auto jacobian_t = jacobian.transpose();
 		auto jtj = jacobian_t * jacobian;
 		auto jtr = -jacobian_t * residuals;
 
 		Eigen::JacobiSVD<Eigen::MatrixXf> svd(jtj, Eigen::ComputeThinU | Eigen::ComputeThinV);
 		auto result = svd.solve(jtr);
-
-		std::cout << svd.rank() << std::endl;
 
 		rotation_coefficients.x -= result(0);
 		rotation_coefficients.y -= result(1);
@@ -105,7 +119,13 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		translation_coefficients.y -= result(4);
 		translation_coefficients.z -= result(5);
 
-		/*std::cout << "result: " << result << std::endl;
-		std::cout << "Iteration: " << iteration << " , Loss: " << (residuals.array() * residuals.array()).sum() << std::endl;*/
+		projection[0][0] -= result(6);
+
+		/*
+		std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
+		std::cout << "System Rank: " << svd.rank() << std::endl;
+		std::cout << "Result: " << result << std::endl;
+		std::cout << "Iteration: " << iteration << " , Loss: " << (residuals.array() * residuals.array()).sum() << std::endl;
+		*/
 	}
 }
