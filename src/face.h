@@ -26,6 +26,7 @@ public:
 	void computeFace();
 	void computeNormals();
 	glm::mat4 computeModelMatrix() const;
+	void computeRotationDerivatives(glm::mat3& dRx, glm::mat3& dRy, glm::mat3& dRz) const;
 
 	//Copies m_average_face_gpu to content of m_vertex_buffer.
 	void updateVertexBuffer();
@@ -40,6 +41,11 @@ public:
 
 	std::vector<float>& getSHCoefficients() { return m_sh_coefficients; }
 	const std::vector<float>& getSHCoefficients() const { return m_sh_coefficients; }
+
+	glm::vec3& getRotationCoefficients() { return m_rotation_coefficients; }
+	const glm::vec3& getRotationCoefficients() const { return m_rotation_coefficients; }
+	glm::vec3& getTranslationCoefficients() { return m_translation_coefficients; }
+	const glm::vec3& getTranslationCoefficients() const { return m_translation_coefficients; }
 
 private:
 	GLuint m_vertex_array{ 0 };
@@ -78,6 +84,7 @@ private:
 	util::DeviceArray<float> m_expression_basis_gpu;
 	util::DeviceArray<float> m_expression_coefficients_gpu;
 
+	//SH parameters
 	std::vector<float> m_sh_coefficients;
 
 	//Pose parameters

@@ -10,8 +10,8 @@
 
 Face::Face(const std::string& morphable_model_directory)
 	: m_sh_coefficients(9, 0.0f)
-	, m_rotation_coefficients(0.0f)
-	, m_translation_coefficients(0.0f)
+	, m_rotation_coefficients(0.0f, 0.0f, 0.0f)
+	, m_translation_coefficients(0.0f, 0.0f, -0.4f)
 {
 	std::ifstream file(morphable_model_directory + "/averageMesh.off");
 	std::string str_dummy;
@@ -54,9 +54,9 @@ Face::Face(const std::string& morphable_model_directory)
 	}
 	file.close();
 
-	for (auto id : PriorSparseFeatures::getPriorIds())
+	for (auto id : PriorSparseFeatures::get().getPriorIds())
 	{
-		PriorSparseFeatures::addPriorPosition(positions[id]);
+		PriorSparseFeatures::get().addPriorPosition(positions[id]);
 	}
 
 	//We will only update position, color and normals of vertices. In order not to copy the constant texture coordinates,
@@ -207,6 +207,55 @@ glm::mat4 Face::computeModelMatrix() const
 	model_matrix[3] = glm::vec4(m_translation_coefficients, 1.0f);
 
 	return model_matrix;
+}
+
+void Face::computeRotationDerivatives(glm::mat3& drx, glm::mat3& dry, glm::mat3& drz) const
+{
+	float cos_z = glm::cos(m_rotation_coefficients.z);
+	float sin_z = glm::sin(m_rotation_coefficients.z);
+	float cos_x = glm::cos(m_rotation_coefficients.x);
+	float sin_x = glm::sin(m_rotation_coefficients.x);
+	float cos_y = glm::cos(m_rotation_coefficients.y);
+	float sin_y = glm::sin(m_rotation_coefficients.y);
+
+	//Derivate with respecto to angle x
+	drx[0][0] = sin_z * cos_x * sin_y;
+	drx[1][0] = sin_z * cos_x * cos_y;
+	drx[2][0] = -sin_z * sin_x;
+
+	drx[0][1] = -sin_y * sin_x;
+	drx[1][1] = -cos_y * sin_x;
+	drx[2][1] = -cos_x;
+
+	drx[0][2] = cos_z * cos_x * sin_y;
+	drx[1][2] = cos_z * cos_x * cos_y;
+	drx[2][2] = -cos_z * sin_x;
+
+	//Derivate with respecto to angle y
+	dry[0][0] = -cos_z * sin_y + sin_z * sin_x * cos_y;
+	dry[1][0] = -cos_z * cos_y - sin_z * sin_x * sin_y;
+	dry[2][0] = 0.0f;
+
+	dry[0][1] = cos_y * cos_x;
+	dry[1][1] = -sin_y * cos_x;
+	dry[2][1] = 0.0f;
+
+	dry[0][2] = sin_z * sin_y + cos_z * sin_x * cos_y;
+	dry[1][2] = cos_y * sin_z - cos_z * sin_x * sin_y;
+	dry[2][2] = 0.0f;
+
+	//Derivate with respecto to angle z
+	drz[0][0] = -sin_z * cos_y + cos_z * sin_x * sin_y;
+	drz[1][0] = sin_z * sin_y + cos_z * sin_x * cos_y;
+	drz[2][0] = cos_z * cos_x;
+
+	drz[0][1] = 0.0f;
+	drz[1][1] = 0.0f;
+	drz[2][1] = 0.0f;
+
+	drz[0][2] = -cos_z * cos_y - sin_z * sin_x * sin_y;
+	drz[1][2] = sin_y * cos_z - sin_z * sin_x * cos_y;
+	drz[2][2] = -sin_z * cos_x;
 }
 
 void Face::updateVertexBuffer()

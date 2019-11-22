@@ -6,11 +6,7 @@
 #include <glm/ext/matrix_transform.hpp>
 #include <utility>
 
-/*#include <opencv2/core.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/highgui.hpp>*/
-
-constexpr int kScreenWidth = 1440;
+constexpr int kScreenWidth = 1200;
 constexpr int kScreenHeight = 900;
 constexpr glm::ivec2 kGuiPosition(0, 0);
 constexpr glm::ivec2 kGuiSize(240, kScreenHeight);
@@ -24,6 +20,7 @@ Application::Application()
 	, m_tracker()
 	, m_menu(kGuiPosition, kGuiSize)
 	, m_camera(0)
+	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {}
 
 void Application::run()
@@ -42,15 +39,15 @@ void Application::run()
 		m_window.refresh();
 
 		cv::Mat frame;
-		//frame = cv::imread("C:/Users/Mustafa/Desktop/average_face.png", cv::IMREAD_COLOR);
+		//frame = cv::imread("C:/Users/Mustafa/Desktop/musti.jpg", cv::IMREAD_COLOR);
 
-		/*if (!m_camera.read(frame))
+		if (!m_camera.read(frame))
 		{
 			continue;
 		}
 
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
-		m_solver.solve(sparse_features, m_face);*/
+		m_solver.solve(sparse_features, m_face, m_projection);
 	}
 }
 
@@ -127,12 +124,8 @@ void Application::initFaceShader()
 	m_face_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/face.frag");
 	m_face_shader.link();
 
-	const auto view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.4f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	const auto projection = glm::perspectiveRH_NO(glm::radians(45.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f);
-
 	m_face_shader.use();
-	m_face_shader.setMat4("view", view);
-	m_face_shader.setMat4("projection", projection);
+	m_face_shader.setMat4("projection", m_projection);
 }
 
 void Application::drawFace()
