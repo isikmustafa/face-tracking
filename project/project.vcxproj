@@ -90,7 +90,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>..\3rd\glm;..\3rd\imgui\examples;..\3rd\imgui;..\3rd\glfw-3.3\include;..\3rd\glad\include;$(DLIB_DIR);$(IncludePath)</IncludePath>
+    <IncludePath>..\3rd\eigen-git-mirror;..\3rd\glm;..\3rd\imgui\examples;..\3rd\imgui;..\3rd\glfw-3.3\include;..\3rd\glad\include;$(DLIB_DIR);$(IncludePath)</IncludePath>
     <LibraryPath>..\3rd\glfw-3.3\lib\lib-vc2017-64bit;..\3rd\glad\lib;$(DLIB_DIR);$(LibraryPath)</LibraryPath>
     <ReferencePath>$(DLIB_DIR);$(ReferencePath)</ReferencePath>
     <ExecutablePath>$(ExecutablePath)</ExecutablePath>
