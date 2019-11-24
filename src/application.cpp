@@ -5,6 +5,9 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <utility>
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include <chrono>
 
 constexpr int kScreenWidth = 1200;
 constexpr int kScreenHeight = 900;
@@ -22,8 +25,8 @@ Application::Application()
 	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {
 	//m_camera = cv::VideoCapture(0); 
-	//m_camera = cv::VideoCapture("./debug_vid.mp4"); 
-	m_camera = cv::VideoCapture("./editor_debug.mov"); 
+	m_camera = cv::VideoCapture("./debug_vid.mp4"); 
+	//m_camera = cv::VideoCapture("./editor_debug.mov"); 
 
 }
 
@@ -42,18 +45,32 @@ void Application::run()
 		m_menu.draw();
 		m_window.refresh();
 
-		cv::Mat frame;
+		cv::Mat rawFrame;
 		//frame = cv::imread("C:/Users/Mustafa/Desktop/musti.jpg", cv::IMREAD_COLOR);
 		
 
-		if (!m_camera.read(frame))
+		if (!m_camera.read(rawFrame))
 		{
 			continue;
 		}
 		//cv::imshow("Video Input", frame);
+		cv::Mat frame; 
+		cv::pyrDown(rawFrame, frame); 
+
 
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
+
+		auto start = std::chrono::high_resolution_clock::now(); 
 		m_solver.solve(sparse_features, m_face, m_projection);
+		auto stop = std::chrono::high_resolution_clock::now();
+		std::cout << "solve time: " << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1000.0 << std::endl; 
+
+
+		start = std::chrono::high_resolution_clock::now();
+		m_solver.solve_CPU(sparse_features, m_face, m_projection);
+		stop = std::chrono::high_resolution_clock::now();
+		std::cout << "solve_CPU time: " << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1000.0 << std::endl;
+
 	}
 }
 
