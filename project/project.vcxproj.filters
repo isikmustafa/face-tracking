@@ -89,5 +89,6 @@
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\src\face.cu" />
+    <CudaCompile Include="..\src\gauss_newton_solver.cu" />
   </ItemGroup>
 </Project>

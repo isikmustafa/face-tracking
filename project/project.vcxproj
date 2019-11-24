@@ -57,6 +57,7 @@
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\src\face.cu" />
+    <CudaCompile Include="..\src\gauss_newton_solver.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5998E701-8D4C-4FF5-9A7C-57391BE7AFE6}</ProjectGuid>
