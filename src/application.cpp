@@ -24,8 +24,8 @@ Application::Application()
 	, m_menu(kGuiPosition, kGuiSize)
 	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {
-	//m_camera = cv::VideoCapture(0); 
-	m_camera = cv::VideoCapture("./debug_vid.mp4"); 
+	m_camera = cv::VideoCapture(0); 
+	//m_camera = cv::VideoCapture("./debug_vid.mp4"); 
 	//m_camera = cv::VideoCapture("./editor_debug.mov"); 
 
 }
@@ -61,9 +61,9 @@ void Application::run()
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
 
 		auto start = std::chrono::high_resolution_clock::now(); 
-		m_solver.solve(sparse_features, m_face, m_projection);
+		//m_solver.solve(sparse_features, m_face, m_projection);
 		auto stop = std::chrono::high_resolution_clock::now();
-		std::cout << "solve time: " << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1000.0 << std::endl; 
+		//std::cout << "solve time: " << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1000.0 << std::endl; 
 
 
 		start = std::chrono::high_resolution_clock::now();

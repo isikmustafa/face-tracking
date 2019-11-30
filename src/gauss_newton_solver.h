@@ -3,7 +3,7 @@
 #include "face.h"
 #include <Eigen/Dense>
 
-#define PCG_ITERS 50
+#define PCG_ITERS 400
 
 
 class GaussNewtonSolver
@@ -23,7 +23,7 @@ public:
 
 private: 
 	cublasHandle_t m_cublas; 
-
+	float m_regularisationWeight = 0; 
 
 	void computeJacobianSparseFeatures(
 		//shared memory
