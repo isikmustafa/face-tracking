@@ -123,7 +123,7 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 	float* pJacobian, float* residuals
 )
 {
-	//TODO: block stuff
+	//TODO: block stuff? 
 	cuComputeJacobianSparseFeatures << <1, nFeatures >> > (
 		//shared memory
 		nFeatures,

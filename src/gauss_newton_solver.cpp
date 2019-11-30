@@ -4,6 +4,7 @@
 #include "device_util.h"
 #include "device_array.h"
 #include <Eigen/Dense>
+#include <chrono>
 
 
 GaussNewtonSolver::GaussNewtonSolver()
@@ -105,7 +106,7 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 
 
 
-	int number_of_gn_iterations = 15;
+	int number_of_gn_iterations = 5;
 	for (int iteration = 0; iteration < number_of_gn_iterations; ++iteration)
 	{
 		face.computeFace();
@@ -345,10 +346,19 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 
 
+
 	int number_of_gn_iterations = 15;
 	for (int iteration = 0; iteration < number_of_gn_iterations; ++iteration)
 	{
+
+		auto start = std::chrono::high_resolution_clock::now();
 		face.computeFace();
+		auto stop = std::chrono::high_resolution_clock::now();
+		std::cout << "compute face time:  " << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1000.0 << std::endl;
+
+
+		start = std::chrono::high_resolution_clock::now();
+
 
 		auto face_pose = face.computeModelMatrix();
 		jacobian_local <<
@@ -376,13 +386,17 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
 			); 
 
-
+		stop = std::chrono::high_resolution_clock::now();
+		std::cout << "sparse feature time: " << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1000.0 << std::endl;
 
 		//Apply step and update poses GPU
+		start = std::chrono::high_resolution_clock::now();
 
 		solveUpdatePCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1, -1);
 		util::copy(result, result_gpu, nUnknowns);
 
+		stop = std::chrono::high_resolution_clock::now();
+		std::cout << "PCG time: " << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1000.0 << std::endl;
 
 		projection[0][0] -= result[0];
 

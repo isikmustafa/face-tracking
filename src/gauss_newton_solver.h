@@ -3,7 +3,7 @@
 #include "face.h"
 #include <Eigen/Dense>
 
-#define PCG_ITERS 300
+#define PCG_ITERS 50
 
 
 class GaussNewtonSolver
