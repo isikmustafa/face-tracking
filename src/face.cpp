@@ -118,6 +118,7 @@ Face::Face(const std::string& morphable_model_directory)
 
 	m_shape_basis_gpu = util::DeviceArray<float>(m_shape_basis);
 	m_shape_coefficients_gpu = util::DeviceArray<float>(m_shape_coefficients.size());
+	m_shape_std_dev_gpu = util::DeviceArray<float>(m_shape_std_dev); 
 
 	m_albedo_basis = loadModelData(morphable_model_directory + "/AlbedoBasis_modified.matrix", true);
 	m_albedo_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationAlbedo.vec", false);
@@ -126,6 +127,7 @@ Face::Face(const std::string& morphable_model_directory)
 
 	m_albedo_basis_gpu = util::DeviceArray<float>(m_albedo_basis);
 	m_albedo_coefficients_gpu = util::DeviceArray<float>(m_albedo_coefficients.size());
+	m_albedo_std_dev_gpu = util::DeviceArray<float>(m_albedo_std_dev);
 
 	m_expression_basis = loadModelData(morphable_model_directory + "/ExpressionBasis_modified.matrix", true);
 	m_expression_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationExpression.vec", false);
@@ -134,6 +136,7 @@ Face::Face(const std::string& morphable_model_directory)
 
 	m_expression_basis_gpu = util::DeviceArray<float>(m_expression_basis);
 	m_expression_coefficients_gpu = util::DeviceArray<float>(m_expression_coefficients.size());
+	m_expression_std_dev_gpu = util::DeviceArray<float>(m_expression_std_dev);
 
 	cublasCreate(&m_cublas);
 }

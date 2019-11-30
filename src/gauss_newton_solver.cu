@@ -85,24 +85,36 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 	//Derivative of local coordinates with respect to shape and expression parameters
 	//This is basically the corresponding (to unique vertices we have chosen) rows of basis matrices.
-	//TODO:
 
 	auto jacobian_shape = jacobian_proj_world_local * shape_basis.block(3 * vertexId, 0, 3, nShapeCoeffs);
-	//	std::cout << nUnknowns << " " << nFaceCoeffs << " " << nShapeCoeffs << " " << nExpressionCoeffs << " " << vertexId <<" "<< face.m_shape_basis.size() << " " << face.m_number_of_vertices<< std::endl; 
-	//	std::cout << jacobian.size() <<" " <<jacobian.rows()<< " "<<jacobian.cols() <<std::endl; 
 
-	//	std::cout << "J_block\n" << jacobian.block(i * 2, 7, 2, nShapeCoeffs) << std::endl; 
-	//	std::cout << "shape_block\n" << shape_basis.block(0,0,3, nShapeCoeffs) << std::endl;
-
-	//	std::cout << "shape_block\n" << shape_basis.block(3 * vertexId, 0, 3, nShapeCoeffs) << std::endl;
-
-	//	std::cout << "J_shape\n"  <<jacobian_shape << std::endl;
 	jacobian.block(i * 2, 7, 2, nShapeCoeffs) = jacobian_shape;
 
 	auto jacobian_expression = jacobian_proj_world_local * expression_basis.block(3 * vertexId, 0, 3, nExpressionCoeffs);
 	jacobian.block(i * 2, 7 + nShapeCoeffs, 2, nExpressionCoeffs) = jacobian_expression;
 }
 
+
+__global__ void cuComputeRegularizer(
+	int nUnknowns, int nResiduals,
+	int offsetRows, int offsetCols,
+	float wReg, 
+
+	//device memory input
+	float* pSTD, float* pCoeffs, 
+
+	//device memory output
+	float* pJacobian, float* residuals
+)
+{
+	int i = util::getThreadIndex1D();
+
+	Eigen::Map<Eigen::MatrixXf> jacobian(pJacobian, nResiduals, nUnknowns);
+	float divSigma = 1.0f / pSTD[i];
+	//3rd division, because we are getting the denormalized coefficients computed in computeFace()
+	jacobian(offsetRows + i, offsetCols + i) = divSigma * divSigma * divSigma*pCoeffs[i] * wReg * 2; 
+	residuals[offsetRows + i] = 0;
+}
 
 void GaussNewtonSolver::computeJacobianSparseFeatures(
 	//shared memory
@@ -142,4 +154,62 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 		//device memory output
 		pJacobian, residuals
 		);
+}
+
+
+void GaussNewtonSolver::computeRegularizer(
+
+	Face& face,
+	int offsetRows,
+	int nUnknowns, int nResiduals,
+
+	float wReg,
+
+	//device memory output
+	float* pJacobian, float* residuals
+)
+{
+	//Shape
+	int offsetCols = 7; 
+	cuComputeRegularizer<<<1,m_params.numShapeCoefficients >>>(
+		nUnknowns, nResiduals,
+		offsetRows, offsetCols,
+		wReg,
+
+		//device memory input
+		face.m_shape_std_dev_gpu.getPtr(), face.m_shape_coefficients_gpu.getPtr(),
+
+		//device memory output
+		pJacobian, residuals
+	); 
+
+	//Expression
+	offsetRows += m_params.numShapeCoefficients; 
+	offsetCols += m_params.numShapeCoefficients;
+	cuComputeRegularizer << <1, m_params.numExpressionCoefficients >> > (
+		nUnknowns, nResiduals,
+		offsetRows, offsetCols,
+		wReg,
+
+		//device memory input
+		face.m_expression_std_dev_gpu.getPtr(), face.m_expression_coefficients_gpu.getPtr(),
+
+		//device memory output
+		pJacobian, residuals
+		);
+
+	//Albedo
+	//offsetRows += m_params.numExpressionCoefficients; 
+	//offsetCols += m_params.numExpressionCoefficients;
+	//cuComputeRegularizer <<<1,	m_params.numAlbedoCoefficients >>> (
+	//	nUnknowns, nResiduals,
+	//	offsetRows, offsetCols,
+	//	wReg,
+
+	//	//device memory input
+	//	face.m_albedo_std_dev_gpu.getPtr(), face.m_albedo_coefficients_gpu.getPtr(),
+
+	//	//device memory output
+	//	pJacobian, residuals
+	//	);
 }

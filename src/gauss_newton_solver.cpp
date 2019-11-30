@@ -200,14 +200,12 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 				float divSigma = 1.0f/face.m_shape_std_dev[i]; 
 				jacobian(offset_rows_shape + i, offset_cols_shape + i) = divSigma * divSigma*face.m_shape_coefficients[i] * wReg * 2;
 				residuals(offset_rows_shape + i) = 0; 
-
 			}
 			for (int i = 0; i < nExpressionCoeffs; ++i)
 			{
 				float divSigma = 1.0f / face.m_expression_std_dev[i];
 				jacobian(offset_rows_expression + i, offset_cols_expression + i) = divSigma * divSigma*face.m_expression_coefficients[i] * wReg * 2;
 				residuals(offset_rows_expression + i) = 0;
-
 			}
 		}
 
@@ -257,16 +255,13 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 		for (int i = 0; i < nShapeCoeffs; ++i)
 		{
 			auto c = face.m_shape_coefficients[i] - result[7 + i] * sca / face.m_shape_std_dev[i];
-			//face.m_shape_coefficients[i] = std::max(-5.0f, std::min(5.0f, c));
 			face.m_shape_coefficients[i] = c;
-
 		}
 #pragma omp parallel for
 		for (int i = 0; i < nExpressionCoeffs; ++i)
 		{
 			auto c = face.m_expression_coefficients[i] - result[7 + nShapeCoeffs + i] * sca / face.m_expression_std_dev[i];
 			face.m_expression_coefficients[i] = std::max(0.0f, std::min(1.f, c));
-			//face.m_expression_coefficients[i] = c;
 		}
 
 
@@ -295,10 +290,12 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	int nShapeCoeffs = m_params.numShapeCoefficients;
 	int nExpressionCoeffs = m_params.numExpressionCoefficients;
 	int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs;
-	int nUnknowns = 7 + nFaceCoeffs;
+	int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics.
 
-	//will not be valid since these are taken from vertices of the average face.
-	//const auto& prior_local_positions = PriorSparseFeatures::get().getPriorPositions();
+	nResiduals += nFaceCoeffs; //Regularizer
+
+	float wReg = std::powf(10, m_params.regularisationWeightExponent);
+
 	const auto& prior_local_ids = PriorSparseFeatures::get().getPriorIds();
 	auto& rotation_coefficients = face.getRotationCoefficients();
 	auto& translation_coefficients = face.getTranslationCoefficients();
@@ -391,10 +388,14 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
 			); 
 
+
+		computeRegularizer(face, 2 * nFeatures, nUnknowns, nResiduals, wReg, jacobian_gpu.getPtr(), residuals_gpu.getPtr()); 
+
+
 		//Apply step and update poses GPU
 
-		//solveUpdatePCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1, -1);
-		solveUpdateLU(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1, -1);
+		solveUpdatePCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1, -1);
+		//solveUpdateLU(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1, -1);
 
 		util::copy(result, result_gpu, nUnknowns);
 
@@ -414,30 +415,15 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		for (int i = 0; i < nShapeCoeffs; ++i)
 		{
 			auto c = face.m_shape_coefficients[i] - result[7 + i] * sca / face.m_shape_std_dev[i];
-			face.m_shape_coefficients[i] = std::max(-5.0f, std::min(5.0f, c));
 			face.m_shape_coefficients[i] = c;
-
 		}
 #pragma omp parallel for
 		for (int i = 0; i < nExpressionCoeffs; ++i)
 		{
 			auto c = face.m_expression_coefficients[i] - result[7 + nShapeCoeffs + i] * sca / face.m_expression_std_dev[i];
 			face.m_expression_coefficients[i] = std::max(0.0f, std::min(1.f, c));
-			//face.m_expression_coefficients[i] = c;
 		}
-
-
-		//if (iteration % 5 == 0)
-		//{
-		//	//std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
-		//	std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
-		//	std::cout << "System Rank: " << svd.rank() << std::endl;
-		//	//std::cout << "Result: " << result << std::endl;
-		//	std::cout << "Iteration: " << iteration << " , Loss: " << (residuals.array() * residuals.array()).sum() << std::endl;
-		//}
-
 	}
-	//std::cout << "================END OF FRAME================" << std::endl; 
 }
 
 void GaussNewtonSolver::solveUpdateLU(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian, util::DeviceArray<float>& residuals, util::DeviceArray<float>& result, const float alphaLHS, const float alphaRHS)
@@ -495,7 +481,7 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 	float TOLERANCE = 1.0e-10;			//convergence if rtr < TOLERANCE
 	x.memset(0);
 	//r = JTf;
-	auto r = util::DeviceArray<float>(nUnknowns);	//curren residual
+	auto r = util::DeviceArray<float>(nUnknowns);	//current residual
 	auto p = util::DeviceArray<float>(nUnknowns);	//gradient 
 	auto Jp = util::DeviceArray<float>(nResiduals);
 	auto JTJp = util::DeviceArray<float>(nUnknowns);

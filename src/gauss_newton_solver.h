@@ -6,7 +6,7 @@
 
 struct SolverParameters
 {
-	float regularisationWeightExponent = -3f; 
+	float regularisationWeightExponent = -3.0f; 
 
 	int numGNiterations = 4; 
 	int numPCGiterations = 200; 
@@ -55,5 +55,17 @@ private:
 		//device memory output
 		float* pJacobian, float* residuals
 	); 
+
+	void computeRegularizer(
+
+		Face& face,
+		int offsetRows,
+		int nUnknowns, int nResiduals,
+
+		float wReg,
+
+		//device memory output
+		float* pJacobian, float* residuals
+	);
 
 };
