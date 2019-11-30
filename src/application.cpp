@@ -37,6 +37,8 @@ void Application::run()
 
 	while (!glfwWindowShouldClose(m_window.getGLFWWindow()))
 	{
+		auto start_frame = std::chrono::high_resolution_clock::now();
+
 		glfwPollEvents();
 
 		m_face.computeFace();
@@ -45,32 +47,24 @@ void Application::run()
 		m_menu.draw();
 		m_window.refresh();
 
-		cv::Mat rawFrame;
-		//frame = cv::imread("C:/Users/Mustafa/Desktop/musti.jpg", cv::IMREAD_COLOR);
-		
+		cv::Mat rawFrame;		
 
 		if (!m_camera.read(rawFrame))
 		{
 			continue;
 		}
-		//cv::imshow("Video Input", frame);
 		cv::Mat frame; 
 		cv::pyrDown(rawFrame, frame); 
 
-
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
 
-		auto start = std::chrono::high_resolution_clock::now(); 
 		//m_solver.solve(sparse_features, m_face, m_projection);
-		auto stop = std::chrono::high_resolution_clock::now();
-		//std::cout << "solve time: " << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1000.0 << std::endl; 
-
-
-		start = std::chrono::high_resolution_clock::now();
 		m_solver.solve_CPU(sparse_features, m_face, m_projection);
-		stop = std::chrono::high_resolution_clock::now();
-		std::cout << "solve_CPU time: " << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1000.0 << std::endl;
 
+
+		auto end_frame = std::chrono::high_resolution_clock::now();
+		m_frame_time = std::chrono::duration_cast<std::chrono::microseconds>(end_frame - start_frame).count() / 1000.0;
+		std::cout << m_frame_time << std::endl; 
 	}
 }
 
@@ -128,14 +122,33 @@ void Application::initMenuWidgets()
 	};
 	m_menu.attach(std::move(sh_parameters_gui));
 
-	auto gpu_memory_info_gui = []()
+	auto& solver = m_solver; 
+	auto opt_parameters = [&solver]()
+	{
+		ImGui::CollapsingHeader("Optimisation Parameters", ImGuiTreeNodeFlags_DefaultOpen);
+		ImGui::SliderFloat("Regularizer exp", &solver.getParameters()->regularisationWeightExponent, -8.0f, 4.0f);
+		ImGui::SliderInt("Gauss Newton iterations", &solver.getParameters()->numGNiterations, 1, 15);
+		ImGui::SliderInt("PCG iterations", &solver.getParameters()->numPCGiterations, 1, 500);
+
+		ImGui::SliderInt("Shape Parameters", &solver.getParameters()->numShapeCoefficients, 0, 160);
+		ImGui::SliderInt("Albedo Parameters", &solver.getParameters()->numAlbedoCoefficients, 0,160);
+		ImGui::SliderInt("Expression Parameters", &solver.getParameters()->numExpressionCoefficients, 0,76);
+
+	};
+	m_menu.attach(std::move(opt_parameters));
+
+	auto frame_time = &m_frame_time; 
+	auto gpu_memory_info_gui = [frame_time]()
 	{
 		ImGui::Separator();
+		ImGui::Text("Frame Time: %.1f ms", *frame_time);
 
 		size_t free, total;
 		CHECK_CUDA_ERROR(cudaMemGetInfo(&free, &total));
+
 		ImGui::Text("Free  GPU Memory: %.1f MB", free / (1024.0f * 1024.0f));
 		ImGui::Text("Total GPU Memory: %.1f MB", total / (1024.0f * 1024.0f));
+
 		ImGui::End();
 	};
 	m_menu.attach(std::move(gpu_memory_info_gui));

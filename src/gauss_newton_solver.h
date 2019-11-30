@@ -3,8 +3,18 @@
 #include "face.h"
 #include <Eigen/Dense>
 
-#define PCG_ITERS 400
 
+struct SolverParameters
+{
+	float regularisationWeightExponent = -3f; 
+
+	int numGNiterations = 4; 
+	int numPCGiterations = 200; 
+
+	int numShapeCoefficients = 80; 
+	int numAlbedoCoefficients = 80;
+	int numExpressionCoefficients = 76; 
+};
 
 class GaussNewtonSolver
 {
@@ -20,10 +30,12 @@ public:
 	void solveUpdatePCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian, util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
 	void solveUpdateLU(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian, util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
 
+	SolverParameters* getParameters() { return &m_params;  }
 
 private: 
 	cublasHandle_t m_cublas; 
-	float m_regularisationWeight = 0; 
+
+	SolverParameters m_params; 
 
 	void computeJacobianSparseFeatures(
 		//shared memory

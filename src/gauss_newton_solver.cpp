@@ -27,14 +27,15 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 
 	int nFeatures = sparse_features.size();
 	int nResiduals = 2 * nFeatures;
-	int nShapeCoeffs = face.m_shape_coefficients.size(); 
-	nShapeCoeffs = 30;
-	int nExpressionCoeffs = face.m_expression_coefficients.size(); 
-	//nExpressionCoeffs = 20; 
+	int nShapeCoeffs = m_params.numShapeCoefficients;
+	int nExpressionCoeffs = m_params.numExpressionCoefficients; 
 	int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs; 
 	int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics.
-
+	
 	nResiduals += nFaceCoeffs; //Regularizer
+
+	float wReg = std::powf(10, m_params.regularisationWeightExponent); 
+
 
 	//const auto& prior_local_positions = PriorSparseFeatures::get().getPriorPositions();
 	const auto& prior_local_ids = PriorSparseFeatures::get().getPriorIds();
@@ -106,8 +107,7 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 
 
 
-	int number_of_gn_iterations = 5;
-	for (int iteration = 0; iteration < number_of_gn_iterations; ++iteration)
+	for (int iteration = 0; iteration < m_params.numGNiterations; ++iteration)
 	{
 		face.computeFace();
 		std::vector<glm::vec3> current_face(face.m_number_of_vertices);
@@ -198,25 +198,26 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 			for (int i = 0; i < nShapeCoeffs; ++i)
 			{
 				float divSigma = 1.0f/face.m_shape_std_dev[i]; 
-				jacobian(offset_rows_shape + i, offset_cols_shape + i) = divSigma * divSigma*face.m_shape_coefficients[i] * m_regularisationWeight * 2;
-				residuals(offset_rows_shape + i) = face.m_shape_coefficients[i] * divSigma * m_regularisationWeight;
+				jacobian(offset_rows_shape + i, offset_cols_shape + i) = divSigma * divSigma*face.m_shape_coefficients[i] * wReg * 2;
+				residuals(offset_rows_shape + i) = 0; 
+
 			}
 			for (int i = 0; i < nExpressionCoeffs; ++i)
 			{
 				float divSigma = 1.0f / face.m_expression_std_dev[i];
-				jacobian(offset_rows_expression + i, offset_cols_expression + i) = divSigma * divSigma*face.m_expression_coefficients[i] * m_regularisationWeight * 2;
-				residuals(offset_rows_expression + i) = face.m_expression_coefficients[i] * divSigma * m_regularisationWeight;
+				jacobian(offset_rows_expression + i, offset_cols_expression + i) = divSigma * divSigma*face.m_expression_coefficients[i] * wReg * 2;
+				residuals(offset_rows_expression + i) = 0;
+
 			}
 		}
 
-
 		//Apply step and update poses CPU
 		/**/
-		auto jacobian_t = jacobian.transpose();
-		auto jtj = jacobian_t * jacobian;
-		auto jtr = -jacobian_t * residuals;
+		//auto jacobian_t = jacobian.transpose();
+		//auto jtj = jacobian_t * jacobian;
+		//auto jtr = -jacobian_t * residuals;
 
-		Eigen::JacobiSVD<Eigen::MatrixXf> svd(jtj, Eigen::ComputeThinU | Eigen::ComputeThinV);
+		//Eigen::JacobiSVD<Eigen::MatrixXf> svd(jtj, Eigen::ComputeThinU | Eigen::ComputeThinV);
 		//auto result_eigen = svd.solve(jtr);
 		// projection[0][0] -= result_eigen(0);
 
@@ -234,7 +235,7 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 		util::copy(jacobian_gpu, jacobian.data(), nUnknowns*nResiduals); 
 		util::copy(residuals_gpu, residuals.data(), nResiduals);
 
-		solveUpdatePCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1, -1);
+		solveUpdatePCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 2, -1);
 		util::copy(result, result_gpu, nUnknowns);
 
 
@@ -256,7 +257,7 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 		for (int i = 0; i < nShapeCoeffs; ++i)
 		{
 			auto c = face.m_shape_coefficients[i] - result[7 + i] * sca / face.m_shape_std_dev[i];
-			face.m_shape_coefficients[i] = std::max(-5.0f, std::min(5.0f, c));
+			//face.m_shape_coefficients[i] = std::max(-5.0f, std::min(5.0f, c));
 			face.m_shape_coefficients[i] = c;
 
 		}
@@ -272,10 +273,10 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 		//if (iteration % 5 == 0)
 		//{
 			//std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
-			std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
-			std::cout << "System Rank: " << svd.rank() << std::endl;
-			//std::cout << "Result: " << result << std::endl;
-			std::cout << "Iteration: " << iteration << " , Loss: " << (residuals.array() * residuals.array()).sum() << std::endl;
+			//std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
+			//std::cout << "System Rank: " << svd.rank() << std::endl;
+			////std::cout << "Result: " << result << std::endl;
+			//std::cout << "Iteration: " << iteration << " , Loss: " << (residuals.array() * residuals.array()).sum() << std::endl;
 		//}
 			
 	} //end GN step
@@ -291,10 +292,8 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 	int nFeatures = sparse_features.size();
 	int nResiduals = 2 * nFeatures;
-	int nShapeCoeffs = face.m_shape_coefficients.size();
-	nShapeCoeffs = 30;
-	int nExpressionCoeffs = face.m_expression_coefficients.size();
-	//nExpressionCoeffs = 20; 
+	int nShapeCoeffs = m_params.numShapeCoefficients;
+	int nExpressionCoeffs = m_params.numExpressionCoefficients;
 	int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs;
 	int nUnknowns = 7 + nFaceCoeffs;
 
@@ -360,17 +359,10 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 
 
-	int number_of_gn_iterations = 15;
-	for (int iteration = 0; iteration < number_of_gn_iterations; ++iteration)
+	for (int iteration = 0; iteration < m_params.numGNiterations; ++iteration)
 	{
 
-		auto start = std::chrono::high_resolution_clock::now();
 		face.computeFace();
-		auto stop = std::chrono::high_resolution_clock::now();
-		//std::cout << "compute face time:  " << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1000.0 << std::endl;
-
-
-		start = std::chrono::high_resolution_clock::now();
 
 
 		auto face_pose = face.computeModelMatrix();
@@ -399,17 +391,13 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
 			); 
 
-		stop = std::chrono::high_resolution_clock::now();
-		//std::cout << "sparse feature time: " << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1000.0 << std::endl;
-
 		//Apply step and update poses GPU
-		start = std::chrono::high_resolution_clock::now();
 
-		solveUpdatePCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1, -1);
+		//solveUpdatePCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1, -1);
+		solveUpdateLU(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1, -1);
+
 		util::copy(result, result_gpu, nUnknowns);
 
-		stop = std::chrono::high_resolution_clock::now();
-		//std::cout << "PCG time: " << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1000.0 << std::endl;
 
 		projection[0][0] -= result[0];
 
@@ -420,9 +408,6 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		translation_coefficients.x -= result[4];
 		translation_coefficients.y -= result[5];
 		translation_coefficients.z -= result[6];
-
-
-
 
 		float sca = 1;
 #pragma omp parallel for
@@ -523,7 +508,7 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 	//rTr
 	cublasSdot(cublas, nUnknowns, r.getPtr(), 1, r.getPtr(), 1, &rtr);
 	int i = 0;
-	for (; i < std::min(nUnknowns, PCG_ITERS); ++i)
+	for (; i < std::min(nUnknowns, m_params.numPCGiterations); ++i)
 	{
 		//apply JTJ
 		cublasSgemv(cublas, CUBLAS_OP_N, nResiduals, nUnknowns, &alphaLHS, jacobian.getPtr(), nResiduals, p.getPtr(), 1, &beta, Jp.getPtr(), 1);
@@ -553,6 +538,4 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 		cublasSaxpy(cublas, nUnknowns, &alpha, r.getPtr(), 1, p.getPtr(), 1);
 
 	}
-	std::cout << "PCG Iterations: " << i << std::endl;
-
 }
