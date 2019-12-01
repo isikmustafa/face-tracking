@@ -24,9 +24,8 @@ Application::Application()
 	, m_menu(kGuiPosition, kGuiSize)
 	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {
-	//m_camera = cv::VideoCapture(0); 
-	m_camera = cv::VideoCapture("./debug_vid.mp4"); 
-	//m_camera = cv::VideoCapture("./editor_debug.mov"); 
+	m_camera = cv::VideoCapture(0); 
+	//m_camera = cv::VideoCapture("./debug_vid.mp4"); 
 
 }
 
@@ -60,7 +59,6 @@ void Application::run()
 
 		m_solver.solve(sparse_features, m_face, m_projection);
 		//m_solver.solve_CPU(sparse_features, m_face, m_projection);
-
 
 		auto end_frame = std::chrono::high_resolution_clock::now();
 		m_frame_time = std::chrono::duration_cast<std::chrono::microseconds>(end_frame - start_frame).count() / 1000.0;

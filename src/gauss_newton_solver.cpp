@@ -31,7 +31,6 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 	int nExpressionCoeffs = m_params.numExpressionCoefficients; 
 	int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs; 
 	int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics.
-	
 	nResiduals += nFaceCoeffs; //Regularizer
 
 	float wReg = std::powf(10, m_params.regularisationWeightExponent); 
@@ -248,8 +247,6 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 		translation_coefficients.z -= result[6];
 
 
-
-
 		float sca = 1;
 #pragma omp parallel for
 		for (int i = 0; i < nShapeCoeffs; ++i)
@@ -275,7 +272,6 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 		//}
 			
 	} //end GN step
-	//std::cout << "================END OF FRAME================" << std::endl; 
 }
 
 
@@ -343,7 +339,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 	Eigen::Matrix<float, 3, 3> jacobian_local;
 
-	//clear since we are tracking to model right now, so gradients wrt. eigenvalues are given wrt. average face
+	//clear if we are tracking to model, so gradients wrt. eigenvalues are given wrt. average face
 	//for (int i = 0; i < nShapeCoeffs; ++i)
 	//{
 	//	face.m_shape_coefficients[i] = 0;
@@ -352,8 +348,6 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	//{
 	//	face.m_expression_coefficients[i] = 0;
 	//}
-
-
 
 
 	for (int iteration = 0; iteration < m_params.numGNiterations; ++iteration)
@@ -391,10 +385,9 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 		computeRegularizer(face, 2 * nFeatures, nUnknowns, nResiduals, wReg, jacobian_gpu.getPtr(), residuals_gpu.getPtr()); 
 
-
 		//Apply step and update poses GPU
 
-		solveUpdatePCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1, -1);
+		solveUpdatePCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 2, -1);
 		//solveUpdateLU(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1, -1);
 
 		util::copy(result, result_gpu, nUnknowns);

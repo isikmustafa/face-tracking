@@ -3,18 +3,31 @@
 #include "face.h"
 #include <Eigen/Dense>
 
-
+//Default
 struct SolverParameters
 {
-	float regularisationWeightExponent = -3.0f; 
+	float regularisationWeightExponent = -3.0f;
 
-	int numGNiterations = 4; 
-	int numPCGiterations = 200; 
+	int numGNiterations = 4;
+	int numPCGiterations = 100;
 
-	int numShapeCoefficients = 80; 
-	int numAlbedoCoefficients = 80;
-	int numExpressionCoefficients = 76; 
+	int numShapeCoefficients = 80;
+	int numAlbedoCoefficients = 0;
+	int numExpressionCoefficients = 76;
 };
+
+//Debug
+//struct SolverParameters
+//{
+//	float regularisationWeightExponent = -3.0f; 
+//
+//	int numGNiterations = 1; 
+//	int numPCGiterations = 200; 
+//
+//	int numShapeCoefficients = 5; 
+//	int numAlbedoCoefficients = 0;
+//	int numExpressionCoefficients = 5; 
+//};
 
 class GaussNewtonSolver
 {
