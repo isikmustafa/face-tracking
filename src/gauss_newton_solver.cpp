@@ -524,9 +524,7 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 
 		zTr_old = zTr;
 	}
-
-	std::cout << "PCG iters: " << i << std::endl; 
-
+//	std::cout << "PCG iters: " << i << std::endl; 
 }
 
 void GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian, util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS, const float alphaRHS)
