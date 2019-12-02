@@ -17,8 +17,6 @@ GaussNewtonSolver::~GaussNewtonSolver()
 	cublasDestroy(m_cublas); 
 }
 
-
-
 void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection)
 {
 
@@ -27,13 +25,13 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 
 	int nFeatures = sparse_features.size();
 	int nResiduals = 2 * nFeatures;
-	int nShapeCoeffs = m_params.numShapeCoefficients;
-	int nExpressionCoeffs = m_params.numExpressionCoefficients; 
+	int nShapeCoeffs = m_params.num_shape_coefficients;
+	int nExpressionCoeffs = m_params.num_expression_coefficients; 
 	int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs; 
 	int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics.
 	nResiduals += nFaceCoeffs; //Regularizer
 
-	float wReg = std::powf(10, m_params.regularisationWeightExponent); 
+	float wReg = std::powf(10, m_params.regularisation_weight_exponent); 
 
 
 	//const auto& prior_local_positions = PriorSparseFeatures::get().getPriorPositions();
@@ -106,7 +104,7 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 
 
 
-	for (int iteration = 0; iteration < m_params.numGNiterations; ++iteration)
+	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
 	{
 		face.computeFace();
 		std::vector<glm::vec3> current_face(face.m_number_of_vertices);
@@ -281,16 +279,15 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	if (sparse_features.empty()) //no tracking -> cublas doesnt like a getting matrix/vector of size 0
 		return;
 
-	int nFeatures = sparse_features.size();
-	int nResiduals = 2 * nFeatures;
-	int nShapeCoeffs = m_params.numShapeCoefficients;
-	int nExpressionCoeffs = m_params.numExpressionCoefficients;
-	int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs;
-	int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics.
+	const int nFeatures = sparse_features.size();
+	const int nShapeCoeffs = m_params.num_shape_coefficients;
+	const int nExpressionCoeffs = m_params.num_expression_coefficients;
+	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs;
+	const int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics.
+	const int nResiduals = 2 * nFeatures + nFaceCoeffs;
 
-	nResiduals += nFaceCoeffs; //Regularizer
 
-	float wReg = std::powf(10, m_params.regularisationWeightExponent);
+	float regulatization_weigth = std::powf(10, m_params.regularisation_weight_exponent);
 
 	const auto& prior_local_ids = PriorSparseFeatures::get().getPriorIds();
 	auto& rotation_coefficients = face.getRotationCoefficients();
@@ -350,7 +347,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	//}
 
 
-	for (int iteration = 0; iteration < m_params.numGNiterations; ++iteration)
+	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
 	{
 
 		face.computeFace();
@@ -382,14 +379,12 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
 			); 
 
-
-		computeRegularizer(face, 2 * nFeatures, nUnknowns, nResiduals, wReg, jacobian_gpu.getPtr(), residuals_gpu.getPtr()); 
+		computeRegularizer(face, 2 * nFeatures, nUnknowns, nResiduals, regulatization_weigth, jacobian_gpu.getPtr(), residuals_gpu.getPtr()); 
 
 		//Apply step and update poses GPU
-
+		//solveUpdateCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 2, -1);
 		solveUpdatePCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 2, -1);
-		//solveUpdateLU(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1, -1);
-
+		//solveUpdateLU(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 2, -1);
 		util::copy(result, result_gpu, nUnknowns);
 
 
@@ -470,8 +465,74 @@ void GaussNewtonSolver::solveUpdateLU(const cublasHandle_t& cublas, const int nU
 void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian, util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS, const float alphaRHS)
 {
 	const float alpha = 1, beta = 0;
-	const float NEAR_ZERO = 1.0e-8;		// interpretation of "zero"
-	float TOLERANCE = 1.0e-10;			//convergence if rtr < TOLERANCE
+
+	x.memset(0);
+	auto r = util::DeviceArray<float>(nUnknowns);	//current residual
+	auto p = util::DeviceArray<float>(nUnknowns);	//gradient 
+	auto M = util::DeviceArray<float>(nUnknowns);	//preconditioner
+	auto z = util::DeviceArray<float>(nUnknowns);	//preconditioned residual
+
+	auto Jp = util::DeviceArray<float>(nResiduals);
+	auto JTJp = util::DeviceArray<float>(nUnknowns);
+
+	//M=inv(2*diag(JTJ))
+	computeJacobiPreconditioner(nUnknowns, nResiduals, jacobian.getPtr(), M.getPtr()); 
+
+	//r = JTf;
+	cublasSgemv(cublas, CUBLAS_OP_T, nResiduals, nUnknowns, &alphaRHS, jacobian.getPtr(), nResiduals, residuals.getPtr(), 1, &beta, r.getPtr(), 1);
+
+	//z = Mr
+	elementwiseMultiplication(nUnknowns, M.getPtr(), r.getPtr(), z.getPtr());
+
+	//p=z;
+	cublasScopy(cublas, nUnknowns, z.getPtr(), 1, p.getPtr(), 1);
+
+	float zTr_old = 0, zTr = 0;
+	float pTJTJp;
+	//zTr
+	cublasSdot(cublas, nUnknowns, z.getPtr(), 1, r.getPtr(), 1, &zTr_old);
+	int i = 0;
+	for (; i < std::min(nUnknowns, m_params.num_pcg_iterations); ++i)
+	{
+		//apply JTJ
+		cublasSgemv(cublas, CUBLAS_OP_N, nResiduals, nUnknowns, &alphaLHS, jacobian.getPtr(), nResiduals, p.getPtr(), 1, &beta, Jp.getPtr(), 1);
+		cublasSgemv(cublas, CUBLAS_OP_T, nResiduals, nUnknowns, &alpha, jacobian.getPtr(), nResiduals, Jp.getPtr(), 1, &beta, JTJp.getPtr(), 1);
+
+		cublasSdot(cublas, nUnknowns, p.getPtr(), 1, JTJp.getPtr(), 1, &pTJTJp);
+
+		float ak = zTr_old / std::max(pTJTJp, m_params.kNearZero);
+		//x = ak*p + x
+		cublasSaxpy(cublas, nUnknowns, &ak, p.getPtr(), 1, x.getPtr(), 1);
+
+		//r = r - ak* JTJp
+		ak *= -1;
+		cublasSaxpy(cublas, nUnknowns, &ak, JTJp.getPtr(), 1, r.getPtr(), 1);
+
+		//z=Mr
+		elementwiseMultiplication(nUnknowns, M.getPtr(), r.getPtr(), z.getPtr());
+
+		//zTr
+		cublasSdot(cublas, nUnknowns, z.getPtr(), 1, r.getPtr(), 1, &zTr);
+
+		if (zTr < m_params.kTolerance) break;
+
+		float bk = zTr / std::max(zTr_old, m_params.kNearZero);
+
+		//p = z + bk*p        
+		cublasSscal(cublas, nUnknowns, &bk, p.getPtr(), 1);
+		cublasSaxpy(cublas, nUnknowns, &alpha, z.getPtr(), 1, p.getPtr(), 1);
+
+		zTr_old = zTr;
+	}
+
+	std::cout << "PCG iters: " << i << std::endl; 
+
+}
+
+void GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian, util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS, const float alphaRHS)
+{
+	const float alpha = 1, beta = 0;
+
 	x.memset(0);
 	//r = JTf;
 	auto r = util::DeviceArray<float>(nUnknowns);	//current residual
@@ -482,22 +543,22 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 	//p=r;
 	cublasScopy(cublas, nUnknowns, r.getPtr(), 1, p.getPtr(), 1);
 
-	float rtr_old = 0, rtr;
+	float rTr_old = 0, rTr;
 	float pTJTJp;
 	//rTr
-	cublasSdot(cublas, nUnknowns, r.getPtr(), 1, r.getPtr(), 1, &rtr);
+	cublasSdot(cublas, nUnknowns, r.getPtr(), 1, r.getPtr(), 1, &rTr);
 	int i = 0;
-	for (; i < std::min(nUnknowns, m_params.numPCGiterations); ++i)
+	for (; i < std::min(nUnknowns, m_params.num_pcg_iterations); ++i)
 	{
 		//apply JTJ
 		cublasSgemv(cublas, CUBLAS_OP_N, nResiduals, nUnknowns, &alphaLHS, jacobian.getPtr(), nResiduals, p.getPtr(), 1, &beta, Jp.getPtr(), 1);
 		cublasSgemv(cublas, CUBLAS_OP_T, nResiduals, nUnknowns, &alpha, jacobian.getPtr(), nResiduals, Jp.getPtr(), 1, &beta, JTJp.getPtr(), 1);
 
-		rtr_old = rtr;
+		rTr_old = rTr;
 
 		cublasSdot(cublas, nUnknowns, p.getPtr(), 1, JTJp.getPtr(), 1, &pTJTJp);
 
-		float ak = rtr / std::max(pTJTJp, NEAR_ZERO);
+		float ak = rTr / std::max(pTJTJp, m_params.kNearZero);
 		//x = ak*p + x
 		cublasSaxpy(cublas, nUnknowns, &ak, p.getPtr(), 1, x.getPtr(), 1);
 
@@ -506,15 +567,16 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 		cublasSaxpy(cublas, nUnknowns, &ak, JTJp.getPtr(), 1, r.getPtr(), 1);
 
 		//rTr
-		cublasSdot(cublas, nUnknowns, r.getPtr(), 1, r.getPtr(), 1, &rtr);
+		cublasSdot(cublas, nUnknowns, r.getPtr(), 1, r.getPtr(), 1, &rTr);
 
-		if (rtr < TOLERANCE) break;
+		if (rTr < m_params.kTolerance) break;
 
-		float bk = rtr / std::max(rtr_old, NEAR_ZERO);
+		float bk = rTr / std::max(rTr_old, m_params.kNearZero);
 
 		//p = r + bk*p        
 		cublasSscal(cublas, nUnknowns, &bk, p.getPtr(), 1);
 		cublasSaxpy(cublas, nUnknowns, &alpha, r.getPtr(), 1, p.getPtr(), 1);
 
 	}
+	//std::cout << "CG iters: " << i << std::endl;
 }

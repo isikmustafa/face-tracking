@@ -25,7 +25,7 @@ Application::Application()
 	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {
 	m_camera = cv::VideoCapture(0); 
-	//m_camera = cv::VideoCapture("./debug_vid.mp4"); 
+	m_camera = cv::VideoCapture("./debug_vid.mp4"); 
 
 }
 
@@ -123,13 +123,13 @@ void Application::initMenuWidgets()
 	auto opt_parameters = [&solver]()
 	{
 		ImGui::CollapsingHeader("Optimisation Parameters", ImGuiTreeNodeFlags_DefaultOpen);
-		ImGui::SliderFloat("Regularizer exp", &solver.getParameters()->regularisationWeightExponent, -8.0f, 4.0f);
-		ImGui::SliderInt("Gauss Newton iterations", &solver.getParameters()->numGNiterations, 1, 15);
-		ImGui::SliderInt("PCG iterations", &solver.getParameters()->numPCGiterations, 1, 500);
+		ImGui::SliderFloat("Regularizer exp", &solver.getParameters()->regularisation_weight_exponent, -8.0f, 4.0f);
+		ImGui::SliderInt("Gauss Newton iterations", &solver.getParameters()->num_gn_iterations, 1, 15);
+		ImGui::SliderInt("PCG iterations", &solver.getParameters()->num_pcg_iterations, 1, 500);
 
-		ImGui::SliderInt("Shape Parameters", &solver.getParameters()->numShapeCoefficients, 0, 160);
-		ImGui::SliderInt("Albedo Parameters", &solver.getParameters()->numAlbedoCoefficients, 0,160);
-		ImGui::SliderInt("Expression Parameters", &solver.getParameters()->numExpressionCoefficients, 0,76);
+		ImGui::SliderInt("Shape Parameters", &solver.getParameters()->num_shape_coefficients, 0, 160);
+		ImGui::SliderInt("Albedo Parameters", &solver.getParameters()->num_albedo_coefficients, 0,160);
+		ImGui::SliderInt("Expression Parameters", &solver.getParameters()->num_expression_coefficients, 0,76);
 
 	};
 	m_menu.attach(std::move(opt_parameters));
