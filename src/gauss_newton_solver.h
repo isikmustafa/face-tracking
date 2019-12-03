@@ -37,18 +37,14 @@ struct SolverParameters
 class GaussNewtonSolver
 {
 public:
-
 	GaussNewtonSolver(); 
 	~GaussNewtonSolver(); 
 
 	void solve(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection);
 	void solve_CPU(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection);
 
-	void solveUpdateCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian, util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
-	void solveUpdatePCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian, util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
-	void solveUpdateLU(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian, util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
-
-	SolverParameters* getParameters() { return &m_params;  }
+	SolverParameters& getSolverParameters() { return m_params; }
+	const SolverParameters& getSolverParameters() const { return m_params; }
 
 private: 
 	cublasHandle_t m_cublas; 
@@ -63,7 +59,7 @@ private:
 		const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal,
 
 		const glm::mat4& face_pose, const glm::mat3& drx, const glm::mat3& dry, const glm::mat3& drz, const glm::mat4& projection,
-		const Eigen::Matrix<float, 2, 3>& jacobian_proj, const const Eigen::Matrix<float, 3, 3>& jacobian_world,
+		const Eigen::Matrix<float, 2, 3>& jacobian_proj, const Eigen::Matrix<float, 3, 3>& jacobian_world,
 		const Eigen::Matrix<float, 3, 1>& jacobian_intrinsics, const Eigen::Matrix<float, 3, 6>& jacobian_pose, const Eigen::Matrix3f& jacobian_local,
 
 		//device memory input
@@ -89,4 +85,14 @@ private:
 	void elementwiseMultiplication(const int nElements, float* v1, float* v2, float* out);
 	void computeJacobiPreconditioner(const int nUnknowns, const int nResiduals, float* p_jacobian, float* p_preconditioner);
 
+	void solveUpdateCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
+		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
+	void solveUpdatePCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
+		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
+	void solveUpdateLU(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
+		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
+	
+	void updateParameters(const std::vector<float>& result, glm::mat4& projection,
+		glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face,
+		const int nShapeCoeffs, const int nExpressionCoeffs);
 };
