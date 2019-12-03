@@ -25,6 +25,7 @@ private:
 	cv::VideoCapture m_camera;
 	GLSLProgram m_face_shader;
 	glm::mat4 m_projection;
+	double m_frame_time = 0; 
 
 private:
 	void initMenuWidgets();

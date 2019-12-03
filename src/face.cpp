@@ -111,29 +111,32 @@ Face::Face(const std::string& morphable_model_directory)
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-	auto shape_basis = loadModelData(morphable_model_directory + "/ShapeBasis_modified.matrix", true);
+	m_shape_basis = loadModelData(morphable_model_directory + "/ShapeBasis_modified.matrix", true);
 	m_shape_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationShape.vec", false);
 	m_shape_coefficients.resize(m_shape_std_dev.size(), 0.0f);
 	m_shape_coefficients_normalized.resize(m_shape_std_dev.size());
 
-	m_shape_basis_gpu = util::DeviceArray<float>(shape_basis);
+	m_shape_basis_gpu = util::DeviceArray<float>(m_shape_basis);
 	m_shape_coefficients_gpu = util::DeviceArray<float>(m_shape_coefficients.size());
+	m_shape_std_dev_gpu = util::DeviceArray<float>(m_shape_std_dev); 
 
-	auto albedo_basis = loadModelData(morphable_model_directory + "/AlbedoBasis_modified.matrix", true);
+	m_albedo_basis = loadModelData(morphable_model_directory + "/AlbedoBasis_modified.matrix", true);
 	m_albedo_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationAlbedo.vec", false);
 	m_albedo_coefficients.resize(m_albedo_std_dev.size(), 0.0f);
 	m_albedo_coefficients_normalized.resize(m_albedo_std_dev.size());
 
-	m_albedo_basis_gpu = util::DeviceArray<float>(albedo_basis);
+	m_albedo_basis_gpu = util::DeviceArray<float>(m_albedo_basis);
 	m_albedo_coefficients_gpu = util::DeviceArray<float>(m_albedo_coefficients.size());
+	m_albedo_std_dev_gpu = util::DeviceArray<float>(m_albedo_std_dev);
 
-	auto expression_basis = loadModelData(morphable_model_directory + "/ExpressionBasis_modified.matrix", true);
+	m_expression_basis = loadModelData(morphable_model_directory + "/ExpressionBasis_modified.matrix", true);
 	m_expression_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationExpression.vec", false);
 	m_expression_coefficients.resize(m_expression_std_dev.size(), 0.0f);
 	m_expression_coefficients_normalized.resize(m_expression_std_dev.size());
 
-	m_expression_basis_gpu = util::DeviceArray<float>(expression_basis);
-	m_expression_coefficients_gpu = util::DeviceArray<float>(expression_basis.size());
+	m_expression_basis_gpu = util::DeviceArray<float>(m_expression_basis);
+	m_expression_coefficients_gpu = util::DeviceArray<float>(m_expression_coefficients.size());
+	m_expression_std_dev_gpu = util::DeviceArray<float>(m_expression_std_dev);
 
 	cublasCreate(&m_cublas);
 }

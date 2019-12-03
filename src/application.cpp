@@ -5,6 +5,9 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <utility>
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include <chrono>
 
 constexpr int kScreenWidth = 1200;
 constexpr int kScreenHeight = 900;
@@ -19,9 +22,12 @@ Application::Application()
 	, m_solver()
 	, m_tracker()
 	, m_menu(kGuiPosition, kGuiSize)
-	, m_camera(0)
 	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
-{}
+{
+	m_camera = cv::VideoCapture(0); 
+//	m_camera = cv::VideoCapture("./debug_vid.mp4"); 
+
+}
 
 void Application::run()
 {
@@ -30,6 +36,8 @@ void Application::run()
 
 	while (!glfwWindowShouldClose(m_window.getGLFWWindow()))
 	{
+		auto start_frame = std::chrono::high_resolution_clock::now();
+
 		glfwPollEvents();
 
 		m_face.computeFace();
@@ -38,16 +46,22 @@ void Application::run()
 		m_menu.draw();
 		m_window.refresh();
 
-		cv::Mat frame;
-		//frame = cv::imread("C:/Users/Mustafa/Desktop/musti.jpg", cv::IMREAD_COLOR);
+		cv::Mat rawFrame;		
 
-		if (!m_camera.read(frame))
+		if (!m_camera.read(rawFrame))
 		{
 			continue;
 		}
+		cv::Mat frame; 
+		cv::pyrDown(rawFrame, frame); 
 
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
+
 		m_solver.solve(sparse_features, m_face, m_projection);
+		//m_solver.solve_CPU(sparse_features, m_face, m_projection);
+
+		auto end_frame = std::chrono::high_resolution_clock::now();
+		m_frame_time = std::chrono::duration_cast<std::chrono::microseconds>(end_frame - start_frame).count() / 1000.0;
 	}
 }
 
@@ -105,14 +119,33 @@ void Application::initMenuWidgets()
 	};
 	m_menu.attach(std::move(sh_parameters_gui));
 
-	auto gpu_memory_info_gui = []()
+	auto& solver = m_solver; 
+	auto opt_parameters = [&solver]()
+	{
+		ImGui::CollapsingHeader("Optimisation Parameters", ImGuiTreeNodeFlags_DefaultOpen);
+		ImGui::SliderFloat("Regularizer exp", &solver.getParameters()->regularisation_weight_exponent, -8.0f, 4.0f);
+		ImGui::SliderInt("Gauss Newton iterations", &solver.getParameters()->num_gn_iterations, 1, 15);
+		ImGui::SliderInt("PCG iterations", &solver.getParameters()->num_pcg_iterations, 1, 500);
+
+		ImGui::SliderInt("Shape Parameters", &solver.getParameters()->num_shape_coefficients, 0, 160);
+		ImGui::SliderInt("Albedo Parameters", &solver.getParameters()->num_albedo_coefficients, 0,160);
+		ImGui::SliderInt("Expression Parameters", &solver.getParameters()->num_expression_coefficients, 0,76);
+
+	};
+	m_menu.attach(std::move(opt_parameters));
+
+	auto frame_time = &m_frame_time; 
+	auto gpu_memory_info_gui = [frame_time]()
 	{
 		ImGui::Separator();
+		ImGui::Text("Frame Time: %.1f ms", *frame_time);
 
 		size_t free, total;
 		CHECK_CUDA_ERROR(cudaMemGetInfo(&free, &total));
+
 		ImGui::Text("Free  GPU Memory: %.1f MB", free / (1024.0f * 1024.0f));
 		ImGui::Text("Total GPU Memory: %.1f MB", total / (1024.0f * 1024.0f));
+
 		ImGui::End();
 	};
 	m_menu.attach(std::move(gpu_memory_info_gui));

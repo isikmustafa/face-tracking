@@ -106,6 +106,13 @@ namespace util
 	}
 
 	template<typename T>
+	void copy(DeviceArray<T>& dst, const T* src, int size, int offset_dst = 0, int offset_src = 0)
+	{
+		assert(dst.getSize() >= size && src.size() >= size);
+		CHECK_CUDA_ERROR(cudaMemcpy(dst.getPtr() + offset_dst, src + offset_src, size * sizeof(T), cudaMemcpyHostToDevice));
+	}
+
+	template<typename T>
 	void copy(std::vector<T>& dst, const std::vector<T>& src, int size, int offset_dst = 0, int offset_src = 0)
 	{
 		assert(dst.size() >= size && src.size() >= size);

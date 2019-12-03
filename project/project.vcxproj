@@ -57,6 +57,7 @@
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\src\face.cu" />
+    <CudaCompile Include="..\src\gauss_newton_solver.cu" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5998E701-8D4C-4FF5-9A7C-57391BE7AFE6}</ProjectGuid>
@@ -131,6 +132,7 @@ xcopy /d "$(OPENCV_BIN)\opencv_world400d.dll" "$(TargetDir)"</Command>
       <PreprocessorDefinitions>WIN32;WIN64;NDEBUG;_CONSOLE;_SILENCE_FPOS_SEEKPOS_DEPRECATION_WARNING;_USE_MATH_DEFINES;_CRT_SECURE_NO_WARNINGS;DLIB_USE_CUDA;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(OPENCV_INCLUDE);%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
