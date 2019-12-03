@@ -24,8 +24,8 @@ Application::Application()
 	, m_menu(kGuiPosition, kGuiSize)
 	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {
-	m_camera = cv::VideoCapture(0); 
-//	m_camera = cv::VideoCapture("./debug_vid.mp4"); 
+	m_camera = cv::VideoCapture(0);
+	//	m_camera = cv::VideoCapture("./debug_vid.mp4"); 
 
 }
 
@@ -46,14 +46,14 @@ void Application::run()
 		m_menu.draw();
 		m_window.refresh();
 
-		cv::Mat rawFrame;		
+		cv::Mat raw_frame;
 
-		if (!m_camera.read(rawFrame))
+		if (!m_camera.read(raw_frame))
 		{
 			continue;
 		}
-		cv::Mat frame; 
-		cv::pyrDown(rawFrame, frame); 
+		cv::Mat frame;
+		cv::pyrDown(raw_frame, frame);
 
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
 
@@ -119,26 +119,24 @@ void Application::initMenuWidgets()
 	};
 	m_menu.attach(std::move(sh_parameters_gui));
 
-	auto& solver = m_solver; 
-	auto opt_parameters = [&solver]()
+	auto& solver_parameters = m_solver.getSolverParameters();
+	auto opt_parameters = [&solver_parameters]()
 	{
 		ImGui::CollapsingHeader("Optimisation Parameters", ImGuiTreeNodeFlags_DefaultOpen);
-		ImGui::SliderFloat("Regularizer exp", &solver.getParameters()->regularisation_weight_exponent, -8.0f, 4.0f);
-		ImGui::SliderInt("Gauss Newton iterations", &solver.getParameters()->num_gn_iterations, 1, 15);
-		ImGui::SliderInt("PCG iterations", &solver.getParameters()->num_pcg_iterations, 1, 500);
+		ImGui::SliderFloat("Regularizer exp", &solver_parameters.regularisation_weight_exponent, -8.0f, 4.0f);
+		ImGui::SliderInt("Gauss Newton iterations", &solver_parameters.num_gn_iterations, 1, 15);
+		ImGui::SliderInt("PCG iterations", &solver_parameters.num_pcg_iterations, 1, 500);
 
-		ImGui::SliderInt("Shape Parameters", &solver.getParameters()->num_shape_coefficients, 0, 160);
-		ImGui::SliderInt("Albedo Parameters", &solver.getParameters()->num_albedo_coefficients, 0,160);
-		ImGui::SliderInt("Expression Parameters", &solver.getParameters()->num_expression_coefficients, 0,76);
-
+		ImGui::SliderInt("Shape Parameters", &solver_parameters.num_shape_coefficients, 0, 160);
+		ImGui::SliderInt("Albedo Parameters", &solver_parameters.num_albedo_coefficients, 0, 160);
+		ImGui::SliderInt("Expression Parameters", &solver_parameters.num_expression_coefficients, 0, 76);
 	};
 	m_menu.attach(std::move(opt_parameters));
 
-	auto frame_time = &m_frame_time; 
-	auto gpu_memory_info_gui = [frame_time]()
+	auto gpu_memory_info_gui = [this]()
 	{
 		ImGui::Separator();
-		ImGui::Text("Frame Time: %.1f ms", *frame_time);
+		ImGui::Text("Frame Time: %.1f ms", m_frame_time);
 
 		size_t free, total;
 		CHECK_CUDA_ERROR(cudaMemGetInfo(&free, &total));

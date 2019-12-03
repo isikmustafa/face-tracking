@@ -48,7 +48,9 @@ public:
 	const glm::vec3& getTranslationCoefficients() const { return m_translation_coefficients; }
 
 private:
-	friend class GaussNewtonSolver; 
+	friend class GaussNewtonSolver;
+
+private:
 	GLuint m_vertex_array{ 0 };
 	GLuint m_vertex_buffer{ 0 };
 	GLuint m_index_buffer{ 0 };
