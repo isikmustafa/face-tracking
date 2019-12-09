@@ -187,9 +187,9 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 
 		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs);
 
-		std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
+		/*std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
 		std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
-		std::cout << "Iteration: " << iteration << " , Loss: " << (residuals.array() * residuals.array()).sum() << std::endl;
+		std::cout << "Iteration: " << iteration << " , Loss: " << (residuals.array() * residuals.array()).sum() << std::endl;*/
 	}
 }
 
