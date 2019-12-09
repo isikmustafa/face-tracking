@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <glm/gtx/euler_angles.hpp>
+#include <Eigen/Dense>
 
 Face::Face(const std::string& morphable_model_directory)
 	: m_sh_coefficients(9, 0.0f)
@@ -112,31 +113,34 @@ Face::Face(const std::string& morphable_model_directory)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 	m_shape_basis = loadModelData(morphable_model_directory + "/ShapeBasis_modified.matrix", true);
-	m_shape_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationShape.vec", false);
-	m_shape_coefficients.resize(m_shape_std_dev.size(), 0.0f);
-	m_shape_coefficients_normalized.resize(m_shape_std_dev.size());
+	auto shape_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationShape.vec", false);
+	m_shape_coefficients.resize(shape_std_dev.size(), 0.0f);
+	Eigen::Map<Eigen::MatrixXf> shape_basis_eigen(m_shape_basis.data(), m_number_of_vertices * 3, m_shape_coefficients.size());
+	Eigen::Map<Eigen::VectorXf> shape_std_dev_eigen(shape_std_dev.data(), shape_std_dev.size());
+	shape_basis_eigen = shape_basis_eigen.array().rowwise() * shape_std_dev_eigen.transpose().array();
 
 	m_shape_basis_gpu = util::DeviceArray<float>(m_shape_basis);
 	m_shape_coefficients_gpu = util::DeviceArray<float>(m_shape_coefficients.size());
-	m_shape_std_dev_gpu = util::DeviceArray<float>(m_shape_std_dev); 
 
 	m_albedo_basis = loadModelData(morphable_model_directory + "/AlbedoBasis_modified.matrix", true);
-	m_albedo_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationAlbedo.vec", false);
-	m_albedo_coefficients.resize(m_albedo_std_dev.size(), 0.0f);
-	m_albedo_coefficients_normalized.resize(m_albedo_std_dev.size());
+	auto albedo_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationAlbedo.vec", false);
+	m_albedo_coefficients.resize(albedo_std_dev.size(), 0.0f);
+	Eigen::Map<Eigen::MatrixXf> albedo_basis_eigen(m_albedo_basis.data(), m_number_of_vertices * 3, m_albedo_coefficients.size());
+	Eigen::Map<Eigen::VectorXf> albedo_std_dev_dev_eigen(albedo_std_dev.data(), albedo_std_dev.size());
+	albedo_basis_eigen = albedo_basis_eigen.array().rowwise() * albedo_std_dev_dev_eigen.transpose().array();
 
 	m_albedo_basis_gpu = util::DeviceArray<float>(m_albedo_basis);
 	m_albedo_coefficients_gpu = util::DeviceArray<float>(m_albedo_coefficients.size());
-	m_albedo_std_dev_gpu = util::DeviceArray<float>(m_albedo_std_dev);
 
 	m_expression_basis = loadModelData(morphable_model_directory + "/ExpressionBasis_modified.matrix", true);
-	m_expression_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationExpression.vec", false);
-	m_expression_coefficients.resize(m_expression_std_dev.size(), 0.0f);
-	m_expression_coefficients_normalized.resize(m_expression_std_dev.size());
+	auto expression_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationExpression.vec", false);
+	m_expression_coefficients.resize(expression_std_dev.size(), 0.0f);
+	Eigen::Map<Eigen::MatrixXf> expression_basis_eigen(m_expression_basis.data(), m_number_of_vertices * 3, m_expression_coefficients.size());
+	Eigen::Map<Eigen::VectorXf> expression_std_dev_dev_eigen(expression_std_dev.data(), expression_std_dev.size());
+	expression_basis_eigen = expression_basis_eigen.array().rowwise() * expression_std_dev_dev_eigen.transpose().array();
 
 	m_expression_basis_gpu = util::DeviceArray<float>(m_expression_basis);
 	m_expression_coefficients_gpu = util::DeviceArray<float>(m_expression_coefficients.size());
-	m_expression_std_dev_gpu = util::DeviceArray<float>(m_expression_std_dev);
 
 	cublasCreate(&m_cublas);
 }
@@ -163,41 +167,23 @@ Face::~Face()
 
 void Face::computeFace()
 {
-	int shape_number_of_coefficients = m_shape_coefficients.size();
-	for (int i = 0; i < shape_number_of_coefficients; ++i)
-	{
-		m_shape_coefficients_normalized[i] = m_shape_coefficients[i] * m_shape_std_dev[i];
-	}
-
-	int albedo_number_of_coefficients = m_albedo_coefficients.size();
-	for (int i = 0; i < albedo_number_of_coefficients; ++i)
-	{
-		m_albedo_coefficients_normalized[i] = m_albedo_coefficients[i] * m_albedo_std_dev[i];
-	}
-
-	int expression_number_of_coefficients = m_expression_coefficients.size();
-	for (int i = 0; i < expression_number_of_coefficients; ++i)
-	{
-		m_expression_coefficients_normalized[i] = m_expression_coefficients[i] * m_expression_std_dev[i];
-	}
-
-	util::copy(m_shape_coefficients_gpu, m_shape_coefficients_normalized, shape_number_of_coefficients);
-	util::copy(m_albedo_coefficients_gpu, m_albedo_coefficients_normalized, albedo_number_of_coefficients);
-	util::copy(m_expression_coefficients_gpu, m_expression_coefficients_normalized, expression_number_of_coefficients);
+	util::copy(m_shape_coefficients_gpu, m_shape_coefficients, m_shape_coefficients.size());
+	util::copy(m_albedo_coefficients_gpu, m_albedo_coefficients, m_albedo_coefficients.size());
+	util::copy(m_expression_coefficients_gpu, m_expression_coefficients, m_expression_coefficients.size());
 	util::copy(m_current_face_gpu, m_average_face_gpu, m_average_face_gpu.getSize());
 
 	float alpha = 1.0f;
 	float beta = 1.0f;
 	int m = 3 * m_number_of_vertices;
-	int n = shape_number_of_coefficients;
+	int n = m_shape_coefficients.size();
 	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_shape_basis_gpu.getPtr(), m, m_shape_coefficients_gpu.getPtr(), 1, &beta,
 		reinterpret_cast<float*>(m_current_face_gpu.getPtr()), 1);
 
-	n = albedo_number_of_coefficients;
+	n = m_albedo_coefficients.size();
 	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_albedo_basis_gpu.getPtr(), m, m_albedo_coefficients_gpu.getPtr(), 1, &beta,
 		reinterpret_cast<float*>(m_current_face_gpu.getPtr()) + m, 1);
 
-	n = expression_number_of_coefficients;
+	n = m_expression_coefficients.size();
 	cublasSgemv(m_cublas, CUBLAS_OP_N, m, n, &alpha, m_expression_basis_gpu.getPtr(), m, m_expression_coefficients_gpu.getPtr(), 1, &beta,
 		reinterpret_cast<float*>(m_current_face_gpu.getPtr()), 1);
 
