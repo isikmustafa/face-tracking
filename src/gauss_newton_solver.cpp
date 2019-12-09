@@ -52,36 +52,20 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 
 	//Some parts of jacobians are constants. That's why they are intialized here only once.
 	//Do not touch them inside the for loops.
-	Eigen::Matrix<float, 2, 3> jacobian_proj;
-	jacobian_proj(0, 1) = 0.0f;
-	jacobian_proj(1, 0) = 0.0f;
+	Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
 
-	Eigen::Matrix<float, 3, 3> jacobian_world;
-	jacobian_world(0, 1) = 0.0f;
-	jacobian_world(0, 2) = 0.0f;
-	jacobian_world(1, 0) = 0.0f;
+	Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
 	jacobian_world(1, 1) = projection[1][1];
-	jacobian_world(1, 2) = 0.0f;
-	jacobian_world(2, 0) = 0.0f;
-	jacobian_world(2, 1) = 0.0f;
 	jacobian_world(2, 2) = -1.0f;
 
-	Eigen::Matrix<float, 3, 1> jacobian_intrinsics;
-	jacobian_intrinsics(1, 0) = 0.0f;
-	jacobian_intrinsics(2, 0) = 0.0f;
+	Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
 
-	Eigen::Matrix<float, 3, 6> jacobian_pose;
+	Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
 	jacobian_pose(0, 3) = 1.0f;
-	jacobian_pose(1, 3) = 0.0f;
-	jacobian_pose(2, 3) = 0.0f;
-	jacobian_pose(0, 4) = 0.0f;
 	jacobian_pose(1, 4) = 1.0f;
-	jacobian_pose(2, 4) = 0.0f;
-	jacobian_pose(0, 5) = 0.0f;
-	jacobian_pose(1, 5) = 0.0f;
 	jacobian_pose(2, 5) = 1.0f;
 
-	Eigen::Matrix<float, 3, 3> jacobian_local;
+	Eigen::Matrix<float, 3, 3> jacobian_local = Eigen::MatrixXf::Zero(3, 3);
 
 	std::vector<glm::vec3> current_face(face.m_number_of_vertices);
 	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
@@ -224,36 +208,20 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 	//Some parts of jacobians are constants. That's why thet are intialized here only once.
 	//Do not touch them inside the for loops.
-	Eigen::Matrix<float, 2, 3> jacobian_proj;
-	jacobian_proj(0, 1) = 0.0f;
-	jacobian_proj(1, 0) = 0.0f;
+	Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
 
-	Eigen::Matrix<float, 3, 3> jacobian_world;
-	jacobian_world(0, 1) = 0.0f;
-	jacobian_world(0, 2) = 0.0f;
-	jacobian_world(1, 0) = 0.0f;
+	Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
 	jacobian_world(1, 1) = projection[1][1];
-	jacobian_world(1, 2) = 0.0f;
-	jacobian_world(2, 0) = 0.0f;
-	jacobian_world(2, 1) = 0.0f;
 	jacobian_world(2, 2) = -1.0f;
 
-	Eigen::Matrix<float, 3, 1> jacobian_intrinsics;
-	jacobian_intrinsics(1, 0) = 0.0f;
-	jacobian_intrinsics(2, 0) = 0.0f;
+	Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
 
-	Eigen::Matrix<float, 3, 6> jacobian_pose;
+	Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
 	jacobian_pose(0, 3) = 1.0f;
-	jacobian_pose(1, 3) = 0.0f;
-	jacobian_pose(2, 3) = 0.0f;
-	jacobian_pose(0, 4) = 0.0f;
 	jacobian_pose(1, 4) = 1.0f;
-	jacobian_pose(2, 4) = 0.0f;
-	jacobian_pose(0, 5) = 0.0f;
-	jacobian_pose(1, 5) = 0.0f;
 	jacobian_pose(2, 5) = 1.0f;
 
-	Eigen::Matrix<float, 3, 3> jacobian_local;
+	Eigen::Matrix<float, 3, 3> jacobian_local = Eigen::MatrixXf::Zero(3, 3);
 
 	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
 	{
