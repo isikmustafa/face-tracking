@@ -96,7 +96,7 @@ __global__ void cuComputeRegularizer(
 	const float regularizationWeight,
 
 	//device memory input
-	float* p_stdev, float* p_coefficients, 
+	float* p_coefficients, 
 
 	//device memory output
 	float* p_jacobian, float* p_residuals
@@ -105,10 +105,9 @@ __global__ void cuComputeRegularizer(
 	int i = util::getThreadIndex1D();
 
 	Eigen::Map<Eigen::MatrixXf> jacobian(p_jacobian, nResiduals, nUnknowns);
-	float div_sigma = 1.0f / p_stdev[i];
 	//3rd division, because we are getting the denormalized coefficients computed in computeFace()
-	jacobian(offset_rows + i, offset_cols + i) = div_sigma * div_sigma * div_sigma * p_coefficients[i] * regularizationWeight * 2;
-	p_residuals[offset_rows + i] = 0;
+	jacobian(offset_rows + i, offset_cols + i) = p_coefficients[i] * regularizationWeight * 2;
+	p_residuals[offset_rows + i] = p_coefficients[i] * glm::sqrt(regularizationWeight);
 }
 
 __global__ void cuComputeJacobiPreconditioner(const int nUnknowns, const int nResiduals, float* p_jacobian, float* p_preconditioner)
@@ -199,7 +198,7 @@ void GaussNewtonSolver::computeRegularizer(
 		regularizationWeight,
 
 		//device memory input
-		face.m_shape_std_dev_gpu.getPtr(), face.m_shape_coefficients_gpu.getPtr(),
+		face.m_shape_coefficients_gpu.getPtr(),
 
 		//device memory output
 		p_jacobian, p_residuals
@@ -214,7 +213,7 @@ void GaussNewtonSolver::computeRegularizer(
 		regularizationWeight,
 
 		//device memory input
-		face.m_expression_std_dev_gpu.getPtr(), face.m_expression_coefficients_gpu.getPtr(),
+		face.m_expression_coefficients_gpu.getPtr(),
 
 		//device memory output
 		p_jacobian, p_residuals
