@@ -31,7 +31,7 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 	const int nResiduals = 2 * nFeatures + nFaceCoeffs; //nFaceCoeffs -> regularizer
 	const int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics. Plus nFaceCoeffs for face parameters.
 
-	const float wReg = std::powf(10, m_params.regularisation_weight_exponent);
+	const float wReg = 2.5f * std::powf(10, m_params.regularisation_weight_exponent);
 
 	const auto& prior_local_ids = PriorSparseFeatures::get().getPriorIds();
 	auto& rotation_coefficients = face.getRotationCoefficients();
@@ -191,7 +191,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	const int nResiduals = 2 * nFeatures + nFaceCoeffs; //nFaceCoeffs -> regularizer
 	const int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics. Plus nFaceCoeffs for face parameters.
 
-	const float wReg = std::powf(10, m_params.regularisation_weight_exponent);
+	const float wReg = 2.5f * std::powf(10, m_params.regularisation_weight_exponent);
 
 	const auto& prior_local_ids = PriorSparseFeatures::get().getPriorIds();
 	auto& rotation_coefficients = face.getRotationCoefficients();
