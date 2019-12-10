@@ -6,7 +6,7 @@
 //Default
 struct SolverParameters
 {
-	float regularisation_weight_exponent = -3.0f;
+	float regularisation_weight_exponent = -4.6f;
 
 	int num_gn_iterations = 5;
 	int num_pcg_iterations = 15;
