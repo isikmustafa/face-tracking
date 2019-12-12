@@ -30,7 +30,8 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 	int offset_rows = nFeatures * 2;
 	int offset_cols = 7;
-	 
+
+	// Regularization terms
 	if (i >= nFeatures)
 	{
 		const int current_index = i - nFeatures;
@@ -195,6 +196,6 @@ void GaussNewtonSolver::computeJacobiPreconditioner(const int nUnknowns, const i
 
 void GaussNewtonSolver::elementwiseMultiplication(const int nElements, float* v1, float* v2, float* out)
 {
-	cuElementwiseMultiplication << <1, nElements>> > (v1, v2, out);
+	cuElementwiseMultiplication<<<1, nElements>>>(v1, v2, out);
 	cudaDeviceSynchronize();
 }
