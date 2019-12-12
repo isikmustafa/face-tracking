@@ -236,23 +236,22 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		face.computeRotationDerivatives(drx, dry, drz);
 
 		//CUDA
-		//TODO: block stuff
 		computeJacobianSparseFeatures(
 			//shared memory
 			nFeatures, nShapeCoeffs, nExpressionCoeffs, nUnknowns, nResiduals,
 			face.m_number_of_vertices * 3, face.m_shape_coefficients.size(), face.m_expression_coefficients.size(),
+			wReg,
+
 			face_pose, drx, dry, drz, projection,
 			jacobian_proj, jacobian_world, jacobian_intrinsics, jacobian_pose, jacobian_local,
 
 			//device memory input
 			ids_gpu.getPtr(), face.m_current_face_gpu.getPtr(), key_pts_gpu.getPtr(),
-			face.m_shape_basis_gpu.getPtr(), face.m_expression_basis_gpu.getPtr(),
+			face.m_shape_basis_gpu.getPtr(), face.m_expression_basis_gpu.getPtr(), face.m_shape_coefficients_gpu.getPtr(), face.m_expression_basis_gpu.getPtr(),
 
 			//device memory output
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
 		);
-
-		computeRegularizer(face, 2 * nFeatures, nUnknowns, nResiduals, wReg, jacobian_gpu.getPtr(), residuals_gpu.getPtr());
 
 		//Apply step and update poses GPU
 		solveUpdateCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);

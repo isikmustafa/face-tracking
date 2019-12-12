@@ -37,8 +37,8 @@ struct SolverParameters
 class GaussNewtonSolver
 {
 public:
-	GaussNewtonSolver(); 
-	~GaussNewtonSolver(); 
+	GaussNewtonSolver();
+	~GaussNewtonSolver();
 
 	void solve(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection);
 	void solve_CPU(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection);
@@ -46,10 +46,10 @@ public:
 	SolverParameters& getSolverParameters() { return m_params; }
 	const SolverParameters& getSolverParameters() const { return m_params; }
 
-private: 
-	cublasHandle_t m_cublas; 
+private:
+	cublasHandle_t m_cublas;
 
-	SolverParameters m_params; 
+	SolverParameters m_params;
 
 	void computeJacobianSparseFeatures(
 		//shared memory
@@ -57,6 +57,7 @@ private:
 		const int nShapeCoeffs, const int nExpressionCoeffs,
 		const int nUnknowns, const int nResiduals,
 		const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal,
+		const float regularizationWeight,
 
 		const glm::mat4& face_pose, const glm::mat3& drx, const glm::mat3& dry, const glm::mat3& drz, const glm::mat4& projection,
 		const Eigen::Matrix<float, 2, 3>& jacobian_proj, const Eigen::Matrix<float, 3, 3>& jacobian_world,
@@ -64,35 +65,24 @@ private:
 
 		//device memory input
 		int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features,
-		float* p_shape_basis, float* p_expression_basis,
+		float* p_shape_basis, float* p_expression_basis, float* p_coefficients_shape, float* p_coefficients_expression,
 
 		//device memory output
-		float* p_jacobian, float* p_residuals
-	);
-
-	void computeRegularizer(
-
-		Face& face,
-		int offset_rows,
-		const int nUnknowns, const int nResiduals,
-
-		float regularization_weight,
-
-		//device memory output
-		float* p_jacobian, float* p_residuals
-	);
+		float* p_jacobian, float* p_residuals) const;
 
 	void elementwiseMultiplication(const int nElements, float* v1, float* v2, float* out);
+
 	void computeJacobiPreconditioner(const int nUnknowns, const int nResiduals, float* p_jacobian, float* p_preconditioner);
 
 	void solveUpdateCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
+
 	void solveUpdatePCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
+
 	void solveUpdateLU(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
-	
+
 	void updateParameters(const std::vector<float>& result, glm::mat4& projection,
-		glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face,
-		const int nShapeCoeffs, const int nExpressionCoeffs);
+		glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face, const int nShapeCoeffs, const int nExpressionCoeffs);
 };
