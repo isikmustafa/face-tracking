@@ -50,8 +50,8 @@ void Application::run()
 		}
 
 		m_face.computeFace();
-
-
+		m_face.updateVertexBuffer(); 
+		m_face.draw(); 
 
 		cv::Mat raw_frame;
 
@@ -163,8 +163,8 @@ void Application::initMenuWidgets()
 
 void Application::initGraphics()
 {
-	glGenFramebuffers(1, &m_frame_buffer_name);
-	glBindFramebuffer(GL_FRAMEBUFFER, m_frame_buffer_name);
+	glGenFramebuffers(1, &m_face_framebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, m_face_framebuffer);
 
 	// The texture we're going to render to
 	glGenTextures(1, &m_rt_rgb);
@@ -258,25 +258,15 @@ void Application::reloadShaders()
 	m_fullscreen_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/quad.vert");
 	m_fullscreen_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/quad.frag");
 	m_fullscreen_shader.link();
+
+
+	m_face.setGraphicsStuff(m_face_framebuffer, m_rt_rgb, m_rt_barycentrics, m_rt_vertex_ids, &m_face_shader); 
+
 }
 
 void Application::draw(cv::Mat& frame)
 {
-	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	// Render to our framebuffer
-	glBindFramebuffer(GL_FRAMEBUFFER, m_frame_buffer_name);
-	//glBindFramebuffer(GL_FRAMEBUFFER, 0); //use this for direct rendering
-	glClearColor(0, 0, 0, 0); 
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	m_face_shader.use();
-	m_face_shader.setMat4("model", m_face.computeModelMatrix());
-	m_face_shader.setUniformFVVar("sh_coefficients", m_face.getSHCoefficients());
-
-	m_face.updateVertexBuffer();
-	m_face.draw(m_face_shader);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glBindVertexArray(m_empty_vao);

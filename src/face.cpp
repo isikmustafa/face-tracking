@@ -258,13 +258,25 @@ void Face::updateVertexBuffer()
 	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &m_resource, 0));
 }
 
-void Face::draw(const GLSLProgram& program) const
+void Face::draw() const
 {
-	program.use();
+	// Render to our framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, m_graphics_settings.framebuffer);
+	//glBindFramebuffer(GL_FRAMEBUFFER, 0); //use this for direct rendering
+	glClearColor(0, 0, 0, 0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	m_graphics_settings.shader->use();
+	m_graphics_settings.shader->setMat4("model", computeModelMatrix());
+	m_graphics_settings.shader->setUniformFVVar("sh_coefficients", getSHCoefficients());
+
+
 
 	glBindVertexArray(m_vertex_array);
 	glDrawElements(GL_TRIANGLES, m_number_of_indices, GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 }
 
 //Only load .matrix file with _modified suffix.
@@ -281,3 +293,13 @@ std::vector<float> Face::loadModelData(const std::string& filename, bool is_basi
 
 	return basis;
 }
+
+
+void Face::setGraphicsStuff(const GLuint framebuffer, const GLuint rt_rgb, const GLuint rt_barycentrics, const GLuint rt_vertex_ids,  GLSLProgram*const shader)
+{
+	m_graphics_settings.shader = shader;  
+	m_graphics_settings.rt_rgb = rt_rgb; 
+	m_graphics_settings.rt_barycentrics = rt_barycentrics; 
+	m_graphics_settings.rt_vertex_id = rt_vertex_ids; 
+	m_graphics_settings.framebuffer = framebuffer; 
+};

@@ -28,7 +28,7 @@ private:
 	glm::mat4 m_projection;
 	double m_frame_time{ 0.0 };
 
-	GLuint m_frame_buffer_name; 
+	GLuint m_face_framebuffer; 
 	GLuint m_rt_rgb; 
 	GLuint m_rt_barycentrics; 
 	GLuint m_rt_vertex_ids; 
