@@ -24,8 +24,8 @@ Application::Application()
 	, m_menu(kGuiPosition, kGuiSize)
 	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {
-	m_camera = cv::VideoCapture(0);
-	//	m_camera = cv::VideoCapture("./debug_vid.mp4"); 
+	//m_camera = cv::VideoCapture(0);
+	m_camera = cv::VideoCapture("./demo.mp4"); 
 
 }
 
@@ -152,6 +152,7 @@ void Application::initMenuWidgets()
 void Application::initFaceShader()
 {
 	m_face_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/face.vert");
+	m_face_shader.attachShader(GL_GEOMETRY_SHADER, "../src/shader/face.geom");
 	m_face_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/face.frag");
 	m_face_shader.link();
 
