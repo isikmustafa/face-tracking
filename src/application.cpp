@@ -196,24 +196,21 @@ void Application::initGraphics()
 	// Set "renderedTexture" as our colour attachement
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, m_rt_barycentrics, 0);
 
-	//glGenTextures(1, &m_rt_vertex_ids);
+	glGenTextures(1, &m_rt_vertex_ids);
 
-	//// "Bind" the newly created texture : all future texture functions will modify this texture
-	//glBindTexture(GL_TEXTURE_2D, m_rt_vertex_ids);
+	// "Bind" the newly created texture : all future texture functions will modify this texture
+	glBindTexture(GL_TEXTURE_2D, m_rt_vertex_ids);
 
-	//// Give an empty image to OpenGL ( the last "0" )
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kScreenWidth, kScreenHeight, 0, GL_RGBA_INTEGER, GL_INT, 0);
+	// Give an empty image to OpenGL ( the last "0" )
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32I, kScreenWidth, kScreenHeight, 0, GL_RGBA_INTEGER, GL_INT, 0);
 
-	//// Poor filtering. Needed !
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	//// Set "renderedTexture" as our colour attachement
-	//glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, m_rt_vertex_ids, 0);
 
+	// Set "renderedTexture" as our colour attachement
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, m_rt_vertex_ids, 0);
 
 
 	GLenum DrawBuffers[3] = { GL_COLOR_ATTACHMENT0,GL_COLOR_ATTACHMENT1,GL_COLOR_ATTACHMENT2 };
-	glDrawBuffers(2, DrawBuffers); // "3" is the size of DrawBuffers
+	glDrawBuffers(3, DrawBuffers); // "3" is the size of DrawBuffers
 
 	glGenRenderbuffers(1, &m_depth_buffer);
 	glBindRenderbuffer(GL_RENDERBUFFER, m_depth_buffer);
@@ -275,7 +272,7 @@ void Application::draw(cv::Mat& frame)
 	m_fullscreen_shader.use();
 	glActiveTexture(GL_TEXTURE0);
 	m_fullscreen_shader.setUniformIVar("image", { 0 }); 
-	glBindTexture(GL_TEXTURE_2D, m_rt_barycentrics); 
+	glBindTexture(GL_TEXTURE_2D, m_rt_rgb); 
 
 	cv::Mat processed_frame; 
 	cv::resize(frame, processed_frame, cv::Size(kScreenWidth, kScreenHeight));
