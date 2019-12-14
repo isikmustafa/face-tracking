@@ -24,11 +24,21 @@ private:
 	Menu m_menu;
 	cv::VideoCapture m_camera;
 	GLSLProgram m_face_shader;
+	GLSLProgram m_fullscreen_shader;
 	glm::mat4 m_projection;
 	double m_frame_time{ 0.0 };
 
+	GLuint m_frame_buffer_name; 
+	GLuint m_rt_rgb; 
+	GLuint m_rt_barycentrics; 
+	GLuint m_rt_vertex_ids; 
+	GLuint m_depth_buffer; 
+	GLuint m_empty_vao; 
+	GLuint m_camera_frame_texture; 
+
 private:
+	void initGraphics();
 	void initMenuWidgets();
-	void initFaceShader();
-	void drawFace();
+	void reloadShaders();
+	void draw(cv::Mat& frame);
 };

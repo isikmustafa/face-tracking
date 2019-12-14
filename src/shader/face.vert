@@ -10,6 +10,7 @@ out V2G
  vec4 position;
  vec3 normal;
  vec3 albedo;
+ int id; 
 } vertex;
 
 uniform mat4 model;
@@ -20,6 +21,6 @@ void main()
 	vertex.position = projection * model * vec4(position, 1.0f);
     vertex.albedo = color;
 	vertex.normal = normalize(normal);
-
+	vertex.id = gl_VertexID; 
 //    gl_Position = projection * model * vec4(position, 1.0f);
 }

@@ -114,7 +114,7 @@ void GLSLProgram::use() const
 	glUseProgram(m_program);
 }
 
-void GLSLProgram::setUniformIVar(const std::string& name, const std::vector<GLfloat>& values) const
+void GLSLProgram::setUniformIVar(const std::string& name, const std::vector<GLint>& values) const
 {
 	auto begin = values.begin();
 

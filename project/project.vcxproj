@@ -53,6 +53,8 @@
     <None Include="..\src\shader\face.frag" />
     <None Include="..\src\shader\face.geom" />
     <None Include="..\src\shader\face.vert" />
+    <None Include="..\src\shader\quad.frag" />
+    <None Include="..\src\shader\quad.vert" />
     <None Include="..\src\shader\window.frag" />
     <None Include="..\src\shader\window.vert" />
   </ItemGroup>

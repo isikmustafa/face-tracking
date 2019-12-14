@@ -23,7 +23,7 @@ public:
 	void link();
 	void use() const;
 
-	void setUniformIVar(const std::string& name, const std::vector<GLfloat>& values) const;
+	void setUniformIVar(const std::string& name, const std::vector<GLint>& values) const;
 	void setUniformFVar(const std::string& name, const std::vector<GLfloat>& values) const;
 	void setUniformFVVar(const std::string& name, const std::vector<GLfloat>& values) const;
 	void setMat4(const std::string& name, const glm::mat4& matrix) const;

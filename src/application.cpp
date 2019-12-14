@@ -31,20 +31,27 @@ Application::Application()
 
 void Application::run()
 {
+	initGraphics(); 
 	initMenuWidgets();
-	initFaceShader();
+	reloadShaders();
 
 	while (!glfwWindowShouldClose(m_window.getGLFWWindow()))
 	{
+
+
 		auto start_frame = std::chrono::high_resolution_clock::now();
 
 		glfwPollEvents();
 
+		if (glfwGetKey(m_window.getGLFWWindow(), GLFW_KEY_F5) == GLFW_PRESS)
+		{
+			std::cout << "reload shaders" << std::endl; 
+			reloadShaders(); 
+		}
+
 		m_face.computeFace();
 
-		drawFace();
-		m_menu.draw();
-		m_window.refresh();
+
 
 		cv::Mat raw_frame;
 
@@ -54,6 +61,11 @@ void Application::run()
 		}
 		cv::Mat frame;
 		cv::pyrDown(raw_frame, frame);
+
+		draw(raw_frame);
+		m_menu.draw();
+		m_window.refresh();
+
 
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
 
@@ -149,8 +161,90 @@ void Application::initMenuWidgets()
 	m_menu.attach(std::move(gpu_memory_info_gui));
 }
 
-void Application::initFaceShader()
+void Application::initGraphics()
 {
+	glGenFramebuffers(1, &m_frame_buffer_name);
+	glBindFramebuffer(GL_FRAMEBUFFER, m_frame_buffer_name);
+
+	// The texture we're going to render to
+	glGenTextures(1, &m_rt_rgb);
+
+	// "Bind" the newly created texture : all future texture functions will modify this texture
+	glBindTexture(GL_TEXTURE_2D, m_rt_rgb);
+
+	// Give an empty image to OpenGL ( the last "0" )
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kScreenWidth, kScreenHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+
+	// Poor filtering. Needed !
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	// Set "renderedTexture" as our colour attachement
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_rt_rgb, 0);
+	
+
+	glGenTextures(1, &m_rt_barycentrics);
+
+	// "Bind" the newly created texture : all future texture functions will modify this texture
+	glBindTexture(GL_TEXTURE_2D, m_rt_barycentrics);
+
+	// Give an empty image to OpenGL ( the last "0" )
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kScreenWidth, kScreenHeight, 0, GL_RGBA, GL_FLOAT, 0);
+
+	// Poor filtering. Needed !
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	// Set "renderedTexture" as our colour attachement
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, m_rt_barycentrics, 0);
+
+	//glGenTextures(1, &m_rt_vertex_ids);
+
+	//// "Bind" the newly created texture : all future texture functions will modify this texture
+	//glBindTexture(GL_TEXTURE_2D, m_rt_vertex_ids);
+
+	//// Give an empty image to OpenGL ( the last "0" )
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kScreenWidth, kScreenHeight, 0, GL_RGBA_INTEGER, GL_INT, 0);
+
+	//// Poor filtering. Needed !
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	//// Set "renderedTexture" as our colour attachement
+	//glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, m_rt_vertex_ids, 0);
+
+
+
+	GLenum DrawBuffers[3] = { GL_COLOR_ATTACHMENT0,GL_COLOR_ATTACHMENT1,GL_COLOR_ATTACHMENT2 };
+	glDrawBuffers(2, DrawBuffers); // "3" is the size of DrawBuffers
+
+	glGenRenderbuffers(1, &m_depth_buffer);
+	glBindRenderbuffer(GL_RENDERBUFFER, m_depth_buffer);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kScreenWidth, kScreenHeight);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depth_buffer);
+
+
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	{
+		std::cout << "Failed to create framebuffer" << std::endl; 
+	}
+
+	glGenVertexArrays(1, &m_empty_vao);
+
+
+
+	glGenTextures(1, &m_camera_frame_texture);
+	glBindTexture(GL_TEXTURE_2D, m_camera_frame_texture);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+
+}
+
+void Application::reloadShaders()
+{
+
+	m_face_shader = GLSLProgram(); 
 	m_face_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/face.vert");
 	m_face_shader.attachShader(GL_GEOMETRY_SHADER, "../src/shader/face.geom");
 	m_face_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/face.frag");
@@ -158,14 +252,53 @@ void Application::initFaceShader()
 
 	m_face_shader.use();
 	m_face_shader.setMat4("projection", m_projection);
+
+
+	m_fullscreen_shader = GLSLProgram();
+	m_fullscreen_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/quad.vert");
+	m_fullscreen_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/quad.frag");
+	m_fullscreen_shader.link();
 }
 
-void Application::drawFace()
+void Application::draw(cv::Mat& frame)
 {
+	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	// Render to our framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, m_frame_buffer_name);
+	//glBindFramebuffer(GL_FRAMEBUFFER, 0); //use this for direct rendering
+	glClearColor(0, 0, 0, 0); 
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 	m_face_shader.use();
 	m_face_shader.setMat4("model", m_face.computeModelMatrix());
 	m_face_shader.setUniformFVVar("sh_coefficients", m_face.getSHCoefficients());
 
 	m_face.updateVertexBuffer();
 	m_face.draw(m_face_shader);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glBindVertexArray(m_empty_vao);
+	glDisable(GL_DEPTH_TEST);
+
+	m_fullscreen_shader.use();
+	glActiveTexture(GL_TEXTURE0);
+	m_fullscreen_shader.setUniformIVar("image", { 0 }); 
+	glBindTexture(GL_TEXTURE_2D, m_rt_barycentrics); 
+
+	cv::Mat processed_frame; 
+	cv::resize(frame, processed_frame, cv::Size(kScreenWidth, kScreenHeight));
+	cv::flip(processed_frame, processed_frame, 0); 
+
+	glActiveTexture(GL_TEXTURE0+1);
+	m_fullscreen_shader.setUniformIVar("background", { 1 });
+	glBindTexture(GL_TEXTURE_2D, m_camera_frame_texture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, kScreenWidth, kScreenHeight, 0, GL_BGR, GL_UNSIGNED_BYTE, processed_frame.data);
+
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glBindVertexArray(0);
+	glEnable(GL_DEPTH_TEST);
+
+	
 }

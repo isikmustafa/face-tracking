@@ -8,6 +8,7 @@ in V2G
  vec4 position; 
  vec3 normal;
  vec3 albedo;
+ int id; 
 } vertices[3];
 
 out G2P
@@ -15,10 +16,13 @@ out G2P
 	vec3 normal;
 	vec3 albedo;
 	vec3 barycentrics; 
+	flat ivec3 ids; 
 } v;
 
 void main()
 {
+	v.ids = ivec3(vertices[0].id, vertices[1].id, vertices[2].id); 
+	
 	gl_Position = vertices[0].position; 
 	v.normal = vertices[0].normal;
 	v.albedo = vertices[0].albedo; 
