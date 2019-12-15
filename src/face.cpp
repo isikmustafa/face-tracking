@@ -262,6 +262,8 @@ void Face::draw() const
 {
 	// Render to our framebuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, m_graphics_settings.framebuffer);
+	glViewport(0, 0, 1200, 900);
+
 	//glBindFramebuffer(GL_FRAMEBUFFER, 0); //use this for direct rendering
 	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -295,11 +297,13 @@ std::vector<float> Face::loadModelData(const std::string& filename, bool is_basi
 }
 
 
-void Face::setGraphicsStuff(const GLuint framebuffer, const GLuint rt_rgb, const GLuint rt_barycentrics, const GLuint rt_vertex_ids,  GLSLProgram*const shader)
+void Face::setGraphicsStuff(const GLuint framebuffer, const GLuint rt_rgb, const GLuint rt_barycentrics, const GLuint rt_vertex_ids,  GLSLProgram*const shader, const int screen_width, const int screen_height)
 {
 	m_graphics_settings.shader = shader;  
 	m_graphics_settings.rt_rgb = rt_rgb; 
 	m_graphics_settings.rt_barycentrics = rt_barycentrics; 
 	m_graphics_settings.rt_vertex_id = rt_vertex_ids; 
 	m_graphics_settings.framebuffer = framebuffer; 
+	m_graphics_settings.screen_width = screen_width; 
+	m_graphics_settings.screen_height = screen_height; 
 };

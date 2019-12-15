@@ -257,12 +257,13 @@ void Application::reloadShaders()
 	m_fullscreen_shader.link();
 
 
-	m_face.setGraphicsStuff(m_face_framebuffer, m_rt_rgb, m_rt_barycentrics, m_rt_vertex_ids, &m_face_shader); 
+	m_face.setGraphicsStuff(m_face_framebuffer, m_rt_rgb, m_rt_barycentrics, m_rt_vertex_ids, &m_face_shader, kScreenWidth, kScreenHeight); 
 
 }
 
 void Application::draw(cv::Mat& frame)
 {
+	glViewport(kGuiSize.x, 0, kScreenWidth, kScreenHeight);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -287,5 +288,5 @@ void Application::draw(cv::Mat& frame)
 	glBindVertexArray(0);
 	glEnable(GL_DEPTH_TEST);
 
-	
+
 }
