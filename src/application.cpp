@@ -256,17 +256,15 @@ void Application::reloadShaders()
 	m_fullscreen_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/quad.frag");
 	m_fullscreen_shader.link();
 
-
 	m_face.setGraphicsStuff(m_face_framebuffer, m_rt_rgb, m_rt_barycentrics, m_rt_vertex_ids, &m_face_shader, kScreenWidth, kScreenHeight); 
 
 }
 
 void Application::draw(cv::Mat& frame)
 {
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(kGuiSize.x, 0, kScreenWidth, kScreenHeight);
-
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
 	glBindVertexArray(m_empty_vao);
 	glDisable(GL_DEPTH_TEST);
 
@@ -287,6 +285,5 @@ void Application::draw(cv::Mat& frame)
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glBindVertexArray(0);
 	glEnable(GL_DEPTH_TEST);
-
 
 }
