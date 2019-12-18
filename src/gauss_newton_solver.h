@@ -51,6 +51,13 @@ private:
 
 	SolverParameters m_params;
 
+
+
+
+	void mapRenderTargets(Face& face);
+	void unmapRenderTargets(Face& face);
+
+
 	void computeJacobianSparseFeatures(
 		//shared memory
 		const int nFeatures,

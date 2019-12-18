@@ -225,6 +225,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
 	{
 		face.computeFace();
+		face.draw(); 
 
 		auto face_pose = face.computeModelMatrix();
 		jacobian_local <<
@@ -234,6 +235,8 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 		glm::mat3 drx, dry, drz;
 		face.computeRotationDerivatives(drx, dry, drz);
+
+		mapRenderTargets(face); 
 
 		//CUDA
 		computeJacobianSparseFeatures(
@@ -252,6 +255,9 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			//device memory output
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
 		);
+
+
+		unmapRenderTargets(face); 
 
 		//Apply step and update poses GPU
 		solveUpdateCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);

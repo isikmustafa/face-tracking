@@ -260,6 +260,14 @@ void Face::updateVertexBuffer()
 
 void Face::draw() const
 {
+
+
+	if (m_graphics_settings.mapped_to_cuda)
+	{
+		std::cout << "draw called, while rts mapped!!!" << std::endl;
+		exit(42);
+	}
+
 	// Render to our framebuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, m_graphics_settings.framebuffer);
 	glViewport(0, 0, 1200, 900);
@@ -306,4 +314,19 @@ void Face::setGraphicsStuff(const GLuint framebuffer, const GLuint rt_rgb, const
 	m_graphics_settings.framebuffer = framebuffer; 
 	m_graphics_settings.screen_width = screen_width; 
 	m_graphics_settings.screen_height = screen_height; 
+
+
+	glFinish();
+	if (m_rt_rgb_cuda_ressource)
+		CHECK_CUDA_ERROR(cudaGraphicsUnregisterResource(m_rt_rgb_cuda_ressource));
+	if (m_rt_barycentrics_cuda_ressource)
+		CHECK_CUDA_ERROR(cudaGraphicsUnregisterResource(m_rt_barycentrics_cuda_ressource));
+	if (m_rt_vertex_id_cuda_ressource)
+		CHECK_CUDA_ERROR(cudaGraphicsUnregisterResource(m_rt_vertex_id_cuda_ressource));
+
+	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_rt_rgb_cuda_ressource, m_graphics_settings.rt_rgb, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
+	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_rt_barycentrics_cuda_ressource, m_graphics_settings.rt_rgb, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
+	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_rt_vertex_id_cuda_ressource, m_graphics_settings.rt_rgb, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
+
+
 };

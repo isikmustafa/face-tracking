@@ -147,6 +147,7 @@ xcopy /d "$(OPENCV_BIN)\opencv_world400d.dll" "$(TargetDir)"</Command>
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
+      <CodeGeneration>compute_35,sm_35</CodeGeneration>
     </CudaCompile>
     <PostBuildEvent>
       <Command>xcopy /d "$(GLFW3)\glfw3.dll" "$(TargetDir)"

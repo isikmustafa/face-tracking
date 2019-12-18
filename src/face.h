@@ -28,7 +28,8 @@ public:
 	glm::mat4 computeModelMatrix() const;
 	void computeRotationDerivatives(glm::mat3& dRx, glm::mat3& dRy, glm::mat3& dRz) const;
 
-	void setGraphicsStuff(const GLuint framebuffer, const GLuint rt_rgb, const GLuint rt_barycentrics, const GLuint rt_vertex_ids, GLSLProgram*const shader, const int screen_width, const int screen_height)
+	void setGraphicsStuff(const GLuint framebuffer, const GLuint rt_rgb, const GLuint rt_barycentrics, const GLuint rt_vertex_ids,
+		GLSLProgram*const shader, const int screen_width, const int screen_height);
 
 	//Copies m_average_face_gpu to content of m_vertex_buffer.
 	void updateVertexBuffer();
@@ -63,8 +64,13 @@ private:
 		GLSLProgram* shader; 
 		int screen_width; 
 		int screen_height; 
+		bool mapped_to_cuda = false;
 	}; 
 	GraphicsSettings m_graphics_settings;
+
+	cudaGraphicsResource* m_rt_rgb_cuda_ressource{ nullptr };
+	cudaGraphicsResource* m_rt_barycentrics_cuda_ressource{ nullptr };
+	cudaGraphicsResource* m_rt_vertex_id_cuda_ressource{ nullptr };
 
 	GLuint m_vertex_array{ 0 };
 	GLuint m_vertex_buffer{ 0 };
