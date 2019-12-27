@@ -93,7 +93,7 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 			auto uv = glm::vec2(proj_coord.x, proj_coord.y) / proj_coord.w;
 
 			//Residual
-			auto residual = sparse_features[i] - uv;
+			auto residual = uv - sparse_features[i];
 
 			residuals(i * 2) = residual.x;
 			residuals(i * 2 + 1) = residual.y;
@@ -152,13 +152,13 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 
 		for (int i = 0; i < nShapeCoeffs; ++i)
 		{
-			jacobian(offsetRowsShape + i, offsetColsShape + i) = face.m_shape_coefficients[i] * wReg * 2.0f;
+			jacobian(offsetRowsShape + i, offsetColsShape + i) = glm::sqrt(wReg);
 			residuals(offsetRowsShape + i) = face.m_shape_coefficients[i] * glm::sqrt(wReg);
 		}
 
 		for (int i = 0; i < nExpressionCoeffs; ++i)
 		{
-			jacobian(offsetRowsExpression + i, offsetColsExpression + i) = face.m_expression_coefficients[i] * wReg * 2.0f;
+			jacobian(offsetRowsExpression + i, offsetColsExpression + i) = glm::sqrt(wReg);
 			residuals(offsetRowsExpression + i) = face.m_expression_coefficients[i] * glm::sqrt(wReg);
 		}
 
@@ -444,27 +444,27 @@ void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::
 	glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face,
 	const int nShapeCoeffs, const int nExpressionCoeffs)
 {
-	projection[0][0] -= result[0];
+	projection[0][0] += result[0];
 
-	rotation_coefficients.x -= result[1];
-	rotation_coefficients.y -= result[2];
-	rotation_coefficients.z -= result[3];
+	rotation_coefficients.x += result[1];
+	rotation_coefficients.y += result[2];
+	rotation_coefficients.z += result[3];
 
-	translation_coefficients.x -= result[4];
-	translation_coefficients.y -= result[5];
-	translation_coefficients.z -= result[6];
+	translation_coefficients.x += result[4];
+	translation_coefficients.y += result[5];
+	translation_coefficients.z += result[6];
 
 #pragma omp parallel for
 	for (int i = 0; i < nShapeCoeffs; ++i)
 	{
-		auto c = face.m_shape_coefficients[i] - result[7 + i];
+		auto c = face.m_shape_coefficients[i] + result[7 + i];
 		face.m_shape_coefficients[i] = c;
 	}
 
 #pragma omp parallel for
 	for (int i = 0; i < nExpressionCoeffs; ++i)
 	{
-		auto c = face.m_expression_coefficients[i] - result[7 + nShapeCoeffs + i];
+		auto c = face.m_expression_coefficients[i] + result[7 + nShapeCoeffs + i];
 		face.m_expression_coefficients[i] = glm::clamp(c, 0.0f, 1.0f);
 	}
 }

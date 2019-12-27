@@ -44,8 +44,9 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 		const float coefficient = shift > 0 ? p_coefficients_expression[relative_index] : p_coefficients_shape[relative_index];
 
-		jacobian(offset_rows + i, offset_cols + i) = coefficient * regularizationWeight * 2;
-		p_residuals[offset_rows + i] = coefficient * glm::sqrt(regularizationWeight);
+		auto sqrt_wreg = glm::sqrt(regularizationWeight);
+		jacobian(offset_rows + i, offset_cols + i) = sqrt_wreg;
+		p_residuals[offset_rows + i] = coefficient * sqrt_wreg;
 
 		return;
 	}
@@ -62,7 +63,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 	auto uv = glm::vec2(proj_coord.x, proj_coord.y) / proj_coord.w;
 
 	//Residual
-	auto residual = sparse_features[i] - uv;
+	auto residual = uv - sparse_features[i];
 
 	p_residuals[i * 2] = residual.x;
 	p_residuals[i * 2 + 1] = residual.y;
