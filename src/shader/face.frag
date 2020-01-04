@@ -12,7 +12,7 @@ float computeSH(vec3 dir);
 void main()
 {
 	float light = computeSH(normalize(frag_normal));
-	fragment_color = light * vec4(frag_albedo, 1.0f);
+	fragment_color = vec4(light * frag_albedo, 1.0f);
 }
 
 float computeSH(vec3 dir)
