@@ -207,19 +207,6 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 	//Some parts of jacobians are constants. That's why thet are intialized here only once.
 	//Do not touch them inside the for loops.
-	Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
-
-	Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
-	jacobian_world(1, 1) = projection[1][1];
-	jacobian_world(2, 2) = -1.0f;
-
-	Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
-
-	Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
-	jacobian_pose(0, 3) = 1.0f;
-	jacobian_pose(1, 4) = 1.0f;
-	jacobian_pose(2, 5) = 1.0f;
-
 	Eigen::Matrix<float, 3, 3> jacobian_local = Eigen::MatrixXf::Zero(3, 3);
 
 	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
@@ -242,8 +229,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			face.m_number_of_vertices * 3, face.m_shape_coefficients.size(), face.m_expression_coefficients.size(),
 			wReg,
 
-			face_pose, drx, dry, drz, projection,
-			jacobian_proj, jacobian_world, jacobian_intrinsics, jacobian_pose, jacobian_local,
+			face_pose, drx, dry, drz, projection, jacobian_local,
 
 			//device memory input
 			ids_gpu.getPtr(), face.m_current_face_gpu.getPtr(), key_pts_gpu.getPtr(),
