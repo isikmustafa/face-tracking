@@ -93,7 +93,7 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 			auto uv = glm::vec2(proj_coord.x, proj_coord.y) / proj_coord.w;
 
 			//Residual
-			auto residual = sparse_features[i] - uv;
+			auto residual = uv - sparse_features[i];
 
 			residuals(i * 2) = residual.x;
 			residuals(i * 2 + 1) = residual.y;
@@ -152,13 +152,13 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 
 		for (int i = 0; i < nShapeCoeffs; ++i)
 		{
-			jacobian(offsetRowsShape + i, offsetColsShape + i) = face.m_shape_coefficients[i] * wReg * 2.0f;
+			jacobian(offsetRowsShape + i, offsetColsShape + i) = glm::sqrt(wReg);
 			residuals(offsetRowsShape + i) = face.m_shape_coefficients[i] * glm::sqrt(wReg);
 		}
 
 		for (int i = 0; i < nExpressionCoeffs; ++i)
 		{
-			jacobian(offsetRowsExpression + i, offsetColsExpression + i) = face.m_expression_coefficients[i] * wReg * 2.0f;
+			jacobian(offsetRowsExpression + i, offsetColsExpression + i) = glm::sqrt(wReg);
 			residuals(offsetRowsExpression + i) = face.m_expression_coefficients[i] * glm::sqrt(wReg);
 		}
 
@@ -207,19 +207,6 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 	//Some parts of jacobians are constants. That's why thet are intialized here only once.
 	//Do not touch them inside the for loops.
-	Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
-
-	Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
-	jacobian_world(1, 1) = projection[1][1];
-	jacobian_world(2, 2) = -1.0f;
-
-	Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
-
-	Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
-	jacobian_pose(0, 3) = 1.0f;
-	jacobian_pose(1, 4) = 1.0f;
-	jacobian_pose(2, 5) = 1.0f;
-
 	Eigen::Matrix<float, 3, 3> jacobian_local = Eigen::MatrixXf::Zero(3, 3);
 
 	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
@@ -245,8 +232,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			face.m_number_of_vertices * 3, face.m_shape_coefficients.size(), face.m_expression_coefficients.size(),
 			wReg,
 
-			face_pose, drx, dry, drz, projection,
-			jacobian_proj, jacobian_world, jacobian_intrinsics, jacobian_pose, jacobian_local,
+			face_pose, drx, dry, drz, projection, jacobian_local,
 
 			//device memory input
 			ids_gpu.getPtr(), face.m_current_face_gpu.getPtr(), key_pts_gpu.getPtr(),
@@ -450,27 +436,27 @@ void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::
 	glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face,
 	const int nShapeCoeffs, const int nExpressionCoeffs)
 {
-	projection[0][0] -= result[0];
+	projection[0][0] += result[0];
 
-	rotation_coefficients.x -= result[1];
-	rotation_coefficients.y -= result[2];
-	rotation_coefficients.z -= result[3];
+	rotation_coefficients.x += result[1];
+	rotation_coefficients.y += result[2];
+	rotation_coefficients.z += result[3];
 
-	translation_coefficients.x -= result[4];
-	translation_coefficients.y -= result[5];
-	translation_coefficients.z -= result[6];
+	translation_coefficients.x += result[4];
+	translation_coefficients.y += result[5];
+	translation_coefficients.z += result[6];
 
 #pragma omp parallel for
 	for (int i = 0; i < nShapeCoeffs; ++i)
 	{
-		auto c = face.m_shape_coefficients[i] - result[7 + i];
+		auto c = face.m_shape_coefficients[i] + result[7 + i];
 		face.m_shape_coefficients[i] = c;
 	}
 
 #pragma omp parallel for
 	for (int i = 0; i < nExpressionCoeffs; ++i)
 	{
-		auto c = face.m_expression_coefficients[i] - result[7 + nShapeCoeffs + i];
+		auto c = face.m_expression_coefficients[i] + result[7 + nShapeCoeffs + i];
 		face.m_expression_coefficients[i] = glm::clamp(c, 0.0f, 1.0f);
 	}
 }

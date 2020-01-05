@@ -22,7 +22,7 @@ float computeSH(vec3 dir);
 void main()
 {
 	float light = computeSH(normalize(frag.normal));
-	fragment_color = light * vec4(frag.albedo, 1.0f);
+	fragment_color = vec4(light * frag_albedo, 1.0f);
 	barycentrics = vec4(frag.barycentrics,light); 
 	vertex_indices = vec4(frag.ids, 0); 
 

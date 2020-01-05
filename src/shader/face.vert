@@ -20,7 +20,7 @@ void main()
 {
 	vertex.position = projection * model * vec4(position, 1.0f);
     vertex.albedo = color;
-	vertex.normal = normalize(normal);
+	vertex.normal = normalize(mat3(model) * normal);
 	vertex.id = gl_VertexID; 
 //    gl_Position = projection * model * vec4(position, 1.0f);
 }
