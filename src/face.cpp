@@ -322,7 +322,7 @@ void Face::setRenderParameters(const GLuint framebuffer, const GLuint rt_rgb, co
 	glBindTexture(GL_TEXTURE_2D, m_graphics_settings.rt_rgb);
 	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_rt_rgb_cuda_ressource, m_graphics_settings.rt_rgb, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
 	glBindTexture(GL_TEXTURE_2D, m_graphics_settings.rt_barycentrics);
-	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_rt_barycentrics_cuda_ressource, m_graphics_settings.rt_rgb, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
+	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_rt_barycentrics_cuda_ressource, m_graphics_settings.rt_barycentrics, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
 	glBindTexture(GL_TEXTURE_2D, m_graphics_settings.rt_vertex_id);
-	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_rt_vertex_id_cuda_ressource, m_graphics_settings.rt_rgb, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
+	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_rt_vertex_id_cuda_ressource, m_graphics_settings.rt_vertex_id, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
 };

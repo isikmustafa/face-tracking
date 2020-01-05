@@ -304,23 +304,24 @@ void GaussNewtonSolver::mapRenderTargets(Face& face)
 	cv::Mat o = cv::Mat4f(face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height);
 	cv::Mat ox = cv::Mat3b(face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height);
 
-	for (int y = 0; y < face.m_graphics_settings.screen_height; ++y)
-	{
-		for (int x = 0; x < face.m_graphics_settings.screen_width; ++x)
-		{
-			float4 f = v[y*face.m_graphics_settings.screen_width + x];
-			o.at<cv::Vec4f>(y,x) = cv::Vec4f((float*)&f);
-			ox.at<cv::Vec3b>(y, x)[0] = f.x * 255;
-			ox.at<cv::Vec3b>(y, x)[1] = f.y * 255;
-			ox.at<cv::Vec3b>(y, x)[2] = f.z * 255;
 
-		}
-	}
-	cv::Mat gdmmt; 
-	
-	cv::cvtColor(ox, gdmmt, cv::COLOR_RGB2BGR);
-	cv::imshow("test", o);
-	cv::waitKey(0); 
+	//for (int y = 0; y < face.m_graphics_settings.screen_height; ++y)
+	//{
+	//	for (int x = 0; x < face.m_graphics_settings.screen_width; ++x)
+	//	{
+	//		float4 f = v[y*face.m_graphics_settings.screen_width + x];
+	//		o.at<cv::Vec4f>(y,x) = cv::Vec4f((float*)&f);
+	//		ox.at<cv::Vec3b>(y, x)[0] = f.x * 255;
+	//		ox.at<cv::Vec3b>(y, x)[1] = f.y * 255;
+	//		ox.at<cv::Vec3b>(y, x)[2] = f.z * 255;
+
+	//	}
+	//}
+	////cv::Mat gdmmt; 
+	////
+	////cv::cvtColor(ox, gdmmt, cv::COLOR_RGB2BGR);
+	//cv::imshow("test", ox);
+	//cv::waitKey(1); 
 }
 
 void GaussNewtonSolver::unmapRenderTargets(Face& face)
