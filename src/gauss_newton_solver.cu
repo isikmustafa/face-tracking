@@ -34,7 +34,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 	if (i >= nFeatures)
 	{
 		const int current_index = i - nFeatures;
-		const int shift = (current_index >= nShapeCoeffs ? nShapeCoeffs : 0);
+		const int shift = current_index >= nShapeCoeffs ? nShapeCoeffs : 0;
 
 		offset_rows += shift;
 		offset_cols += shift;
