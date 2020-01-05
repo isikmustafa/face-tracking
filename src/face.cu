@@ -14,7 +14,9 @@ __global__ void computeNormalsKernel(int number_of_vertices, int number_of_faces
 		glm::vec3 v1 = current_face[face.y];
 		glm::vec3 v2 = current_face[face.z];
 
-		glm::vec3 face_normal = normalize(cross((v1 - v0), (v2 - v0)));
+		// Not normalizing face_normal is actually a way to use weighted average of normals of neighbouring triangles
+		// where weights are the areas of the triangles.
+		glm::vec3 face_normal = glm::cross((v1 - v0), (v2 - v0));
 		auto normals = &current_face[2 * number_of_vertices];
 
 		for (int i : { face.x, face.y, face.z })

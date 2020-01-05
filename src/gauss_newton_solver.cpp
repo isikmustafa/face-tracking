@@ -197,11 +197,11 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	auto& rotation_coefficients = face.getRotationCoefficients();
 	auto& translation_coefficients = face.getTranslationCoefficients();
 
+	//TODO: Allocate all of the objects below once. So, move them out of here.
 	auto jacobian_gpu = util::DeviceArray<float>(nUnknowns * nResiduals);
 	auto residuals_gpu = util::DeviceArray<float>(nResiduals);
 	auto result_gpu = util::DeviceArray<float>(nUnknowns);
 	std::vector<float> result(nUnknowns);
-
 	auto ids_gpu = util::DeviceArray<int>(prior_local_ids);
 	auto key_pts_gpu = util::DeviceArray<glm::vec2>(sparse_features);
 
