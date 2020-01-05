@@ -59,9 +59,7 @@ private:
 		const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal,
 		const float regularizationWeight,
 
-		const glm::mat4& face_pose, const glm::mat3& drx, const glm::mat3& dry, const glm::mat3& drz, const glm::mat4& projection,
-		const Eigen::Matrix<float, 2, 3>& jacobian_proj, const Eigen::Matrix<float, 3, 3>& jacobian_world,
-		const Eigen::Matrix<float, 3, 1>& jacobian_intrinsics, const Eigen::Matrix<float, 3, 6>& jacobian_pose, const Eigen::Matrix3f& jacobian_local,
+		const glm::mat4& face_pose, const glm::mat3& drx, const glm::mat3& dry, const glm::mat3& drz, const glm::mat4& projection, const Eigen::Matrix3f& jacobian_local,
 
 		//device memory input
 		int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features,

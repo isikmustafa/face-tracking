@@ -13,9 +13,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal,
 	const float regularizationWeight,
 
-	glm::mat4 face_pose, glm::mat3 drx, glm::mat3 dry, glm::mat3 drz, glm::mat4 projection, 
-	Eigen::Matrix<float, 2, 3> jacobian_proj, Eigen::Matrix<float, 3, 3> jacobian_world, 
-	Eigen::Matrix<float, 3, 1> jacobian_intrinsics, Eigen::Matrix<float, 3, 6> jacobian_pose, Eigen::Matrix3f jacobian_local, 
+	glm::mat4 face_pose, glm::mat3 drx, glm::mat3 dry, glm::mat3 drz, glm::mat4 projection, Eigen::Matrix3f jacobian_local, 
 
 	//device memory input
 	int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features, 
@@ -27,6 +25,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 	int i = util::getThreadIndex1D(); 
 
 	Eigen::Map<Eigen::MatrixXf> jacobian(p_jacobian, nResiduals, nUnknowns);
+	Eigen::Map<Eigen::VectorXf> residuals(p_residuals, nResiduals);
 
 	int offset_rows = nFeatures * 2;
 	int offset_cols = 7;
@@ -35,17 +34,18 @@ __global__ void cuComputeJacobianSparseFeatures(
 	if (i >= nFeatures)
 	{
 		const int current_index = i - nFeatures;
-		const int shift = (current_index > nShapeCoeffs ? nShapeCoeffs : 0);
+		const int shift = current_index >= nShapeCoeffs ? nShapeCoeffs : 0;
 
-		offset_cols += shift;
 		offset_rows += shift;
+		offset_cols += shift;
 
 		const int relative_index = current_index - shift;
 
 		const float coefficient = shift > 0 ? p_coefficients_expression[relative_index] : p_coefficients_shape[relative_index];
 
-		jacobian(offset_rows + i, offset_cols + i) = coefficient * regularizationWeight * 2;
-		p_residuals[offset_rows + i] = coefficient * glm::sqrt(regularizationWeight);
+		auto sqrt_wreg = glm::sqrt(regularizationWeight);
+		jacobian(offset_rows + relative_index, offset_cols + relative_index) = sqrt_wreg;
+		residuals(offset_rows + relative_index) = coefficient * sqrt_wreg;
 
 		return;
 	}
@@ -53,8 +53,20 @@ __global__ void cuComputeJacobianSparseFeatures(
 	Eigen::Map<Eigen::MatrixXf> shape_basis(p_shape_basis, nVerticesTimes3, nShapeCoeffsTotal);
 	Eigen::Map<Eigen::MatrixXf> expression_basis(p_expression_basis, nVerticesTimes3, nExpressionCoeffsTotal);
 
+	Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
+
+	Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
+	jacobian_world(1, 1) = projection[1][1];
+	jacobian_world(2, 2) = -1.0f;
+
+	Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
+
+	Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
+	jacobian_pose(0, 3) = 1.0f;
+	jacobian_pose(1, 4) = 1.0f;
+	jacobian_pose(2, 5) = 1.0f;
+
 	auto vertex_id = prior_local_ids[i];
-	//auto local_coord = prior_local_positions[i];
 	auto local_coord = current_face[vertex_id];
 
 	auto world_coord = face_pose * glm::vec4(local_coord, 1.0f);
@@ -62,10 +74,10 @@ __global__ void cuComputeJacobianSparseFeatures(
 	auto uv = glm::vec2(proj_coord.x, proj_coord.y) / proj_coord.w;
 
 	//Residual
-	auto residual = sparse_features[i] - uv;
+	auto residual = uv - sparse_features[i];
 
-	p_residuals[i * 2] = residual.x;
-	p_residuals[i * 2 + 1] = residual.y;
+	residuals(i * 2) = residual.x;
+	residuals(i * 2 + 1) = residual.y;
 
 	//Jacobian for homogenization (AKA division by w)
 	auto one_over_wp = 1.0f / proj_coord.w;
@@ -121,9 +133,7 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal,
 	const float regularizationWeight,
 
-	const glm::mat4& face_pose, const glm::mat3& drx, const glm::mat3& dry, const glm::mat3& drz, const glm::mat4& projection,
-	const Eigen::Matrix<float, 2, 3>& jacobian_proj, const Eigen::Matrix<float, 3, 3>& jacobian_world,
-	const Eigen::Matrix<float, 3, 1>& jacobian_intrinsics, const Eigen::Matrix<float, 3, 6>& jacobian_pose, const Eigen::Matrix3f& jacobian_local,
+	const glm::mat4& face_pose, const glm::mat3& drx, const glm::mat3& dry, const glm::mat3& drz, const glm::mat4& projection, const Eigen::Matrix3f& jacobian_local,
 
 	//device memory input
 	int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features,
@@ -143,9 +153,7 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal,
 		regularizationWeight,
 
-		face_pose, drx, dry, drz, projection,
-		jacobian_proj, jacobian_world,
-		jacobian_intrinsics, jacobian_pose, jacobian_local,
+		face_pose, drx, dry, drz, projection, jacobian_local,
 
 		//device memory input
 		prior_local_ids, current_face, sparse_features,
