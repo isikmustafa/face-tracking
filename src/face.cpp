@@ -260,8 +260,6 @@ void Face::updateVertexBuffer()
 
 void Face::draw() const
 {
-
-
 	if (m_graphics_settings.mapped_to_cuda)
 	{
 		std::cout << "draw called, while rts mapped!!!" << std::endl;
@@ -270,7 +268,7 @@ void Face::draw() const
 
 	// Render to our framebuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, m_graphics_settings.framebuffer);
-	glViewport(0, 0, 1200, 900);
+	glViewport(0, 0, m_graphics_settings.screen_width, m_graphics_settings.screen_height);
 
 	//glBindFramebuffer(GL_FRAMEBUFFER, 0); //use this for direct rendering
 	glClearColor(0, 0, 0, 0);
@@ -279,8 +277,6 @@ void Face::draw() const
 	m_graphics_settings.shader->use();
 	m_graphics_settings.shader->setMat4("model", computeModelMatrix());
 	m_graphics_settings.shader->setUniformFVVar("sh_coefficients", getSHCoefficients());
-
-
 
 	glBindVertexArray(m_vertex_array);
 	glDrawElements(GL_TRIANGLES, m_number_of_indices, GL_UNSIGNED_INT, 0);
@@ -305,7 +301,7 @@ std::vector<float> Face::loadModelData(const std::string& filename, bool is_basi
 }
 
 
-void Face::setGraphicsStuff(const GLuint framebuffer, const GLuint rt_rgb, const GLuint rt_barycentrics, const GLuint rt_vertex_ids,  GLSLProgram*const shader, const int screen_width, const int screen_height)
+void Face::setRenderParameters(const GLuint framebuffer, const GLuint rt_rgb, const GLuint rt_barycentrics, const GLuint rt_vertex_ids,  GLSLProgram*const shader, const int screen_width, const int screen_height)
 {
 	m_graphics_settings.shader = shader;  
 	m_graphics_settings.rt_rgb = rt_rgb; 
@@ -315,7 +311,6 @@ void Face::setGraphicsStuff(const GLuint framebuffer, const GLuint rt_rgb, const
 	m_graphics_settings.screen_width = screen_width; 
 	m_graphics_settings.screen_height = screen_height; 
 
-
 	glFinish();
 	if (m_rt_rgb_cuda_ressource)
 		CHECK_CUDA_ERROR(cudaGraphicsUnregisterResource(m_rt_rgb_cuda_ressource));
@@ -324,9 +319,10 @@ void Face::setGraphicsStuff(const GLuint framebuffer, const GLuint rt_rgb, const
 	if (m_rt_vertex_id_cuda_ressource)
 		CHECK_CUDA_ERROR(cudaGraphicsUnregisterResource(m_rt_vertex_id_cuda_ressource));
 
+	glBindTexture(GL_TEXTURE_2D, m_graphics_settings.rt_rgb);
 	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_rt_rgb_cuda_ressource, m_graphics_settings.rt_rgb, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
+	glBindTexture(GL_TEXTURE_2D, m_graphics_settings.rt_barycentrics);
 	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_rt_barycentrics_cuda_ressource, m_graphics_settings.rt_rgb, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
+	glBindTexture(GL_TEXTURE_2D, m_graphics_settings.rt_vertex_id);
 	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_rt_vertex_id_cuda_ressource, m_graphics_settings.rt_rgb, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
-
-
 };

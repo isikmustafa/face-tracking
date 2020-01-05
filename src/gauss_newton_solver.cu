@@ -227,10 +227,8 @@ void GaussNewtonSolver::elementwiseMultiplication(const int nElements, float* v1
 	cudaDeviceSynchronize();
 }
 
-
 void GaussNewtonSolver::mapRenderTargets(Face& face)
 {
-
 	if (face.m_graphics_settings.mapped_to_cuda)
 	{
 		std::cout << "map called, while rts already mapped" << std::endl;
@@ -251,15 +249,11 @@ void GaussNewtonSolver::mapRenderTargets(Face& face)
 	const textureReference* ref_tex_rgb;
 	cudaGetTextureReference(&ref_tex_rgb, &m_tex_rgb);
 
-	
 	//ref_tex_rgb->normalized = 0;
 	//ref_tex_rgb->filterMode = cudaFilterModePoint;
 	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&arr_rgb, face.m_rt_rgb_cuda_ressource, 0, 0));
 	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&arr_bary, face.m_rt_barycentrics_cuda_ressource, 0, 0));
 	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&arr_vert, face.m_rt_vertex_id_cuda_ressource, 0, 0));
-
-
-
 
 	cudaTextureDesc desc;
 	memset(&desc, 0, sizeof(desc)); 
@@ -331,7 +325,6 @@ void GaussNewtonSolver::mapRenderTargets(Face& face)
 
 void GaussNewtonSolver::unmapRenderTargets(Face& face)
 {
-
 	if (!face.m_graphics_settings.mapped_to_cuda)
 	{
 		std::cout << "unmap called, while rts already unmapped" << std::endl;
@@ -342,11 +335,8 @@ void GaussNewtonSolver::unmapRenderTargets(Face& face)
 	//cudaDestroyTextureObject(m_tex_barycentrics);
 	//cudaDestroyTextureObject(m_tex_vertex_ids);
 
-
 	cudaGraphicsResource* ressources[] = { face.m_rt_rgb_cuda_ressource, face.m_rt_barycentrics_cuda_ressource, face.m_rt_vertex_id_cuda_ressource };
 	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(3, ressources, 0));
 
 	face.m_graphics_settings.mapped_to_cuda = false;
-
-
 }

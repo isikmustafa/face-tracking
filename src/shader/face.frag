@@ -1,8 +1,5 @@
 #version 330 core
 
-
-
-
 in G2P
 {
 	vec3 normal;
@@ -13,7 +10,7 @@ in G2P
 
 layout(location = 0) out vec4 fragment_color;
 layout(location = 1) out vec4 barycentrics;
-layout(location = 2) out vec4 vertex_indices;
+layout(location = 2) out ivec4 vertex_indices;
 
 uniform float sh_coefficients[9];
 
@@ -22,10 +19,9 @@ float computeSH(vec3 dir);
 void main()
 {
 	float light = computeSH(normalize(frag.normal));
-	fragment_color = vec4(light * frag_albedo, 1.0f);
+	fragment_color = vec4(light * frag.albedo, 1.0f);
 	barycentrics = vec4(frag.barycentrics,light); 
-	vertex_indices = vec4(frag.ids, 0); 
-
+	vertex_indices = ivec4(frag.ids, 0); 
 }
 
 float computeSH(vec3 dir)

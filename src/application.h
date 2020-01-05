@@ -9,6 +9,9 @@
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 
+#include "quad.h"
+
+
 class Application
 {
 public:

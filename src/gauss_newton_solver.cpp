@@ -242,7 +242,6 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
 		);
 
-
 		unmapRenderTargets(face); 
 
 		//Apply step and update poses GPU
@@ -250,14 +249,6 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		util::copy(result, result_gpu, nUnknowns);
 
 		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs);
-
-		/*std::vector<float> residuals_host_vec(residuals_gpu.getSize());
-		util::copy(residuals_host_vec, residuals_gpu, residuals_gpu.getSize());
-		Eigen::Map<Eigen::VectorXf> residuals(residuals_host_vec.data(), residuals_host_vec.size());
-
-		std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
-		std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
-		std::cout << "Iteration: " << iteration << " , Loss: " << (residuals.array() * residuals.array()).sum() << std::endl;*/
 	}
 }
 
@@ -269,22 +260,17 @@ void GaussNewtonSolver::solveUpdateLU(const cublasHandle_t& cublas, const int nU
 	////transpose jacobian bc of stupid col major cublas BS
 	//auto jacobian = util::DeviceArray<float>(nUnknowns*nResiduals);
 	//cublasSgeam(cublas, CUBLAS_OP_T, CUBLAS_OP_N, nResiduals, nUnknowns, &alpha, jacobianT.getPtr(), nUnknowns, &beta, jacobian.getPtr(), nResiduals, jacobian.getPtr(), nResiduals);
-
-
-
 	//solve JTJd = JTf by computeing JTJ and JTf and using cublas LU solver(very bad)
 	auto& JTf = result;
 	auto JTJ = util::DeviceArray<float>(nUnknowns*nUnknowns);
 	auto JTJinv = util::DeviceArray<float>(nUnknowns*nUnknowns);
 	JTJ.memset(0);
-
 	alpha = alphaRHS, beta = 0;
 	//JTf
 	cublasSgemv(cublas, CUBLAS_OP_T, nResiduals, nUnknowns, &alpha, jacobian.getPtr(), nResiduals, residuals.getPtr(), 1, &beta, JTf.getPtr(), 1);
 	alpha = alphaLHS, beta = 0;
 	//JTJ
 	cublasSgemm(cublas, CUBLAS_OP_T, CUBLAS_OP_N, nUnknowns, nUnknowns, nResiduals, &alpha, jacobian.getPtr(), nResiduals, jacobian.getPtr(), nResiduals, &beta, JTJ.getPtr(), nUnknowns);
-
 	cublasSetPointerMode(cublas, CUBLAS_POINTER_MODE_DEVICE);
 
 	//int info = 0;
@@ -293,14 +279,11 @@ void GaussNewtonSolver::solveUpdateLU(const cublasHandle_t& cublas, const int nU
 	auto pivot = util::DeviceArray<int>(nUnknowns);
 
 	cublasSgetrfBatched(cublas, nUnknowns, batch.getPtr(), nUnknowns, pivot.getPtr(), info.getPtr(), 1);
-
 	auto ibatch = util::DeviceArray<float*>({ JTJinv.getPtr() });
 	cublasSgetriBatched(cublas, nUnknowns, batch.getPtr(), nUnknowns, pivot.getPtr(), ibatch.getPtr(), nUnknowns, info.getPtr(), 1);
-
 	cublasSetPointerMode(cublas, CUBLAS_POINTER_MODE_HOST);
 	alpha = 1, beta = 0;
 	cublasSgemv(cublas, CUBLAS_OP_N, nUnknowns, nUnknowns, &alpha, JTJinv.getPtr(), nUnknowns, JTf.getPtr(), 1, &beta, result.getPtr(), 1);
-
 
 	/*cublasStrsm(cublas, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_LOWER, CUBLAS_OP_N, CUBLAS_DIAG_UNIT, nUnknowns, 1, &alpha, JTJ.getPtr(), nUnknowns, JTf.getPtr(), nUnknowns);
 	cublasStrsm(cublas, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT, nUnknowns, 1, &alpha, JTJ.getPtr(), nUnknowns, JTf.getPtr(), nUnknowns);
@@ -311,13 +294,11 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 	util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS, const float alphaRHS)
 {
 	const float alpha = 1, beta = 0;
-
 	x.memset(0);
 	auto r = util::DeviceArray<float>(nUnknowns);	//current residual
 	auto p = util::DeviceArray<float>(nUnknowns);	//gradient 
 	auto M = util::DeviceArray<float>(nUnknowns);	//preconditioner
 	auto z = util::DeviceArray<float>(nUnknowns);	//preconditioned residual
-
 	auto Jp = util::DeviceArray<float>(nResiduals);
 	auto JTJp = util::DeviceArray<float>(nUnknowns);
 
@@ -380,7 +361,6 @@ void GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int nU
 	util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS, const float alphaRHS)
 {
 	const float alpha = 1, beta = 0;
-
 	x.memset(0);
 	//r = JTf;
 	auto r = util::DeviceArray<float>(nUnknowns);	//current residual

@@ -24,8 +24,8 @@ Application::Application()
 	, m_menu(kGuiPosition, kGuiSize)
 	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {
-	//m_camera = cv::VideoCapture(0);
-	m_camera = cv::VideoCapture("./demo.mp4"); 
+	m_camera = cv::VideoCapture(0);
+	//m_camera = cv::VideoCapture("./demo.mp4"); 
 
 }
 
@@ -37,8 +37,6 @@ void Application::run()
 
 	while (!glfwWindowShouldClose(m_window.getGLFWWindow()))
 	{
-
-
 		auto start_frame = std::chrono::high_resolution_clock::now();
 
 		glfwPollEvents();
@@ -54,7 +52,6 @@ void Application::run()
 		m_face.draw(); 
 
 		cv::Mat raw_frame;
-
 		if (!m_camera.read(raw_frame))
 		{
 			continue;
@@ -66,9 +63,7 @@ void Application::run()
 		m_menu.draw();
 		m_window.refresh();
 
-
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
-
 		m_solver.solve(sparse_features, m_face, m_projection);
 		//m_solver.solve_CPU(sparse_features, m_face, m_projection);
 
@@ -166,81 +161,53 @@ void Application::initGraphics()
 	glGenFramebuffers(1, &m_face_framebuffer);
 	glBindFramebuffer(GL_FRAMEBUFFER, m_face_framebuffer);
 
-	// The texture we're going to render to
+	// RGB render texture
 	glGenTextures(1, &m_rt_rgb);
-
-	// "Bind" the newly created texture : all future texture functions will modify this texture
 	glBindTexture(GL_TEXTURE_2D, m_rt_rgb);
-
-	// Give an empty image to OpenGL ( the last "0" )
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kScreenWidth, kScreenHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-
-	// Poor filtering. Needed !
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	// Set "renderedTexture" as our colour attachement
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_rt_rgb, 0);
-	
 
+	// barycentrics render texture
 	glGenTextures(1, &m_rt_barycentrics);
-
-	// "Bind" the newly created texture : all future texture functions will modify this texture
 	glBindTexture(GL_TEXTURE_2D, m_rt_barycentrics);
-
-	// Give an empty image to OpenGL ( the last "0" )
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kScreenWidth, kScreenHeight, 0, GL_RGBA, GL_FLOAT, 0);
-
-	// Poor filtering. Needed !
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	// Set "renderedTexture" as our colour attachement
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, m_rt_barycentrics, 0);
 
+	// vertex ID render texture
 	glGenTextures(1, &m_rt_vertex_ids);
-
-	// "Bind" the newly created texture : all future texture functions will modify this texture
 	glBindTexture(GL_TEXTURE_2D, m_rt_vertex_ids);
-
-	// Give an empty image to OpenGL ( the last "0" )
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32I, kScreenWidth, kScreenHeight, 0, GL_RGBA_INTEGER, GL_INT, 0);
-
-
-	// Set "renderedTexture" as our colour attachement
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, m_rt_vertex_ids, 0);
-
 
 	GLenum DrawBuffers[3] = { GL_COLOR_ATTACHMENT0,GL_COLOR_ATTACHMENT1,GL_COLOR_ATTACHMENT2 };
 	glDrawBuffers(3, DrawBuffers); // "3" is the size of DrawBuffers
-
 	glGenRenderbuffers(1, &m_depth_buffer);
 	glBindRenderbuffer(GL_RENDERBUFFER, m_depth_buffer);
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kScreenWidth, kScreenHeight);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depth_buffer);
-
 
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 	{
 		std::cout << "Failed to create framebuffer" << std::endl; 
 	}
 
+	// empty vertex buffer used to draw fullscreen quad
 	glGenVertexArrays(1, &m_empty_vao);
-
-
-
+	// texture we upload the camera input to
 	glGenTextures(1, &m_camera_frame_texture);
 	glBindTexture(GL_TEXTURE_2D, m_camera_frame_texture);
-
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-
 }
 
 void Application::reloadShaders()
 {
-
 	m_face_shader = GLSLProgram(); 
 	m_face_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/face.vert");
 	m_face_shader.attachShader(GL_GEOMETRY_SHADER, "../src/shader/face.geom");
@@ -256,8 +223,7 @@ void Application::reloadShaders()
 	m_fullscreen_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/quad.frag");
 	m_fullscreen_shader.link();
 
-	m_face.setGraphicsStuff(m_face_framebuffer, m_rt_rgb, m_rt_barycentrics, m_rt_vertex_ids, &m_face_shader, kScreenWidth, kScreenHeight); 
-
+	m_face.setRenderParameters(m_face_framebuffer, m_rt_rgb, m_rt_barycentrics, m_rt_vertex_ids, &m_face_shader, kScreenWidth, kScreenHeight); 
 }
 
 void Application::draw(cv::Mat& frame)
@@ -270,14 +236,14 @@ void Application::draw(cv::Mat& frame)
 
 	m_fullscreen_shader.use();
 	glActiveTexture(GL_TEXTURE0);
-	m_fullscreen_shader.setUniformIVar("image", { 0 }); 
+	m_fullscreen_shader.setUniformIVar("face", { 0 }); 
 	glBindTexture(GL_TEXTURE_2D, m_rt_rgb); 
 
 	cv::Mat processed_frame; 
 	cv::resize(frame, processed_frame, cv::Size(kScreenWidth, kScreenHeight));
 	cv::flip(processed_frame, processed_frame, 0); 
 
-	glActiveTexture(GL_TEXTURE0+1);
+	glActiveTexture(GL_TEXTURE1);
 	m_fullscreen_shader.setUniformIVar("background", { 1 });
 	glBindTexture(GL_TEXTURE_2D, m_camera_frame_texture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, kScreenWidth, kScreenHeight, 0, GL_BGR, GL_UNSIGNED_BYTE, processed_frame.data);
@@ -285,5 +251,4 @@ void Application::draw(cv::Mat& frame)
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glBindVertexArray(0);
 	glEnable(GL_DEPTH_TEST);
-
 }
