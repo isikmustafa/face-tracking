@@ -21,6 +21,15 @@
     <None Include="..\src\shader\face.vert">
       <Filter>shader</Filter>
     </None>
+    <None Include="..\src\shader\face.geom">
+      <Filter>shader</Filter>
+    </None>
+    <None Include="..\src\shader\quad.vert">
+      <Filter>shader</Filter>
+    </None>
+    <None Include="..\src\shader\quad.frag">
+      <Filter>shader</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\3rd\imgui\imgui.cpp">

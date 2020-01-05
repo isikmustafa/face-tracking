@@ -5,16 +5,22 @@ layout (location = 1) in vec3 color;
 layout (location = 2) in vec3 normal;
 layout (location = 3) in vec2 tex_coord;
 
-out vec3 frag_albedo;
-out vec3 frag_normal;
+out V2G
+{
+ vec4 position;
+ vec3 normal;
+ vec3 albedo;
+ int id; 
+} vertex;
 
 uniform mat4 model;
 uniform mat4 projection;
 
 void main()
 {
-    frag_albedo = color;
-	frag_normal = normalize(mat3(model) * normal);
-
-    gl_Position = projection * model * vec4(position, 1.0f);
+	vertex.position = projection * model * vec4(position, 1.0f);
+    vertex.albedo = color;
+	vertex.normal = normalize(mat3(model) * normal);
+	vertex.id = gl_VertexID; 
+//    gl_Position = projection * model * vec4(position, 1.0f);
 }

@@ -25,14 +25,15 @@ Application::Application()
 	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {
 	m_camera = cv::VideoCapture(0);
-	//	m_camera = cv::VideoCapture("./debug_vid.mp4"); 
+	//m_camera = cv::VideoCapture("./demo.mp4"); 
 
 }
 
 void Application::run()
 {
+	initGraphics(); 
 	initMenuWidgets();
-	initFaceShader();
+	reloadShaders();
 
 	while (!glfwWindowShouldClose(m_window.getGLFWWindow()))
 	{
@@ -40,14 +41,17 @@ void Application::run()
 
 		glfwPollEvents();
 
-		m_face.computeFace();
+		if (glfwGetKey(m_window.getGLFWWindow(), GLFW_KEY_F5) == GLFW_PRESS)
+		{
+			std::cout << "reload shaders" << std::endl; 
+			reloadShaders(); 
+		}
 
-		drawFace();
-		m_menu.draw();
-		m_window.refresh();
+		m_face.computeFace();
+		m_face.updateVertexBuffer(); 
+		m_face.draw(); 
 
 		cv::Mat raw_frame;
-
 		if (!m_camera.read(raw_frame))
 		{
 			continue;
@@ -55,8 +59,11 @@ void Application::run()
 		cv::Mat frame;
 		cv::pyrDown(raw_frame, frame);
 
-		auto sparse_features = m_tracker.getSparseFeatures(frame);
+		draw(raw_frame);
+		m_menu.draw();
+		m_window.refresh();
 
+		auto sparse_features = m_tracker.getSparseFeatures(frame);
 		m_solver.solve(sparse_features, m_face, m_projection);
 		//m_solver.solve_CPU(sparse_features, m_face, m_projection);
 
@@ -149,22 +156,99 @@ void Application::initMenuWidgets()
 	m_menu.attach(std::move(gpu_memory_info_gui));
 }
 
-void Application::initFaceShader()
+void Application::initGraphics()
 {
+	glGenFramebuffers(1, &m_face_framebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, m_face_framebuffer);
+
+	// RGB render texture
+	glGenTextures(1, &m_rt_rgb);
+	glBindTexture(GL_TEXTURE_2D, m_rt_rgb);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kScreenWidth, kScreenHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_rt_rgb, 0);
+
+	// barycentrics render texture
+	glGenTextures(1, &m_rt_barycentrics);
+	glBindTexture(GL_TEXTURE_2D, m_rt_barycentrics);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kScreenWidth, kScreenHeight, 0, GL_RGBA, GL_FLOAT, 0);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, m_rt_barycentrics, 0);
+
+	// vertex ID render texture
+	glGenTextures(1, &m_rt_vertex_ids);
+	glBindTexture(GL_TEXTURE_2D, m_rt_vertex_ids);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32I, kScreenWidth, kScreenHeight, 0, GL_RGBA_INTEGER, GL_INT, 0);
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, m_rt_vertex_ids, 0);
+
+	GLenum DrawBuffers[3] = { GL_COLOR_ATTACHMENT0,GL_COLOR_ATTACHMENT1,GL_COLOR_ATTACHMENT2 };
+	glDrawBuffers(3, DrawBuffers); // "3" is the size of DrawBuffers
+	glGenRenderbuffers(1, &m_depth_buffer);
+	glBindRenderbuffer(GL_RENDERBUFFER, m_depth_buffer);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kScreenWidth, kScreenHeight);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depth_buffer);
+
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	{
+		std::cout << "Failed to create framebuffer" << std::endl; 
+	}
+
+	// empty vertex buffer used to draw fullscreen quad
+	glGenVertexArrays(1, &m_empty_vao);
+	// texture we upload the camera input to
+	glGenTextures(1, &m_camera_frame_texture);
+	glBindTexture(GL_TEXTURE_2D, m_camera_frame_texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+
+void Application::reloadShaders()
+{
+	m_face_shader = GLSLProgram(); 
 	m_face_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/face.vert");
+	m_face_shader.attachShader(GL_GEOMETRY_SHADER, "../src/shader/face.geom");
 	m_face_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/face.frag");
 	m_face_shader.link();
 
 	m_face_shader.use();
 	m_face_shader.setMat4("projection", m_projection);
+
+
+	m_fullscreen_shader = GLSLProgram();
+	m_fullscreen_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/quad.vert");
+	m_fullscreen_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/quad.frag");
+	m_fullscreen_shader.link();
+
+	m_face.setRenderParameters(m_face_framebuffer, m_rt_rgb, m_rt_barycentrics, m_rt_vertex_ids, &m_face_shader, kScreenWidth, kScreenHeight); 
 }
 
-void Application::drawFace()
+void Application::draw(cv::Mat& frame)
 {
-	m_face_shader.use();
-	m_face_shader.setMat4("model", m_face.computeModelMatrix());
-	m_face_shader.setUniformFVVar("sh_coefficients", m_face.getSHCoefficients());
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(kGuiSize.x, 0, kScreenWidth, kScreenHeight);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glBindVertexArray(m_empty_vao);
+	glDisable(GL_DEPTH_TEST);
 
-	m_face.updateVertexBuffer();
-	m_face.draw(m_face_shader);
+	m_fullscreen_shader.use();
+	glActiveTexture(GL_TEXTURE0);
+	m_fullscreen_shader.setUniformIVar("face", { 0 }); 
+	glBindTexture(GL_TEXTURE_2D, m_rt_rgb); 
+
+	cv::Mat processed_frame; 
+	cv::resize(frame, processed_frame, cv::Size(kScreenWidth, kScreenHeight));
+	cv::flip(processed_frame, processed_frame, 0); 
+
+	glActiveTexture(GL_TEXTURE1);
+	m_fullscreen_shader.setUniformIVar("background", { 1 });
+	glBindTexture(GL_TEXTURE_2D, m_camera_frame_texture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, kScreenWidth, kScreenHeight, 0, GL_BGR, GL_UNSIGNED_BYTE, processed_frame.data);
+
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glBindVertexArray(0);
+	glEnable(GL_DEPTH_TEST);
 }

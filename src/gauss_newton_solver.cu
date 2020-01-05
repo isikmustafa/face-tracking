@@ -1,9 +1,15 @@
 #pragma once 
 
+
 #include "gauss_newton_solver.h"
 #include "util.h"
 #include "device_util.h"
 #include "device_array.h"
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
+//texture<float4, cudaTextureType2D, cudaReadModeElementType> tex_rgb;
+//texture<float4, cudaTextureType2D, cudaReadModeElementType> tex_barycentrics;
+//texture<int4, cudaTextureType2D, cudaReadModeElementType> tex_vertex_ids;
 
 __global__ void cuComputeJacobianSparseFeatures( 
 	//shared memory
@@ -195,6 +201,19 @@ __global__ void cuElementwiseMultiplication(float* v1, float* v2, float* out)
 	out[i] = v1[i] * v2[i];
 }
 
+__global__ void cuSampleTextureToVector(cudaTextureObject_t tex, float4* memory, int H, int W)
+{
+	uint i = util::getThreadIndex1D();
+	if (i < H*W)
+	{
+		uint x = i / W; 
+		uint y = i - x * W;
+		memory[i] = tex2D<float4>(tex, x, y); 
+	}
+
+}
+
+
 void GaussNewtonSolver::computeJacobiPreconditioner(const int nUnknowns, const int nResiduals, float* p_jacobian, float* p_preconditioner)
 {
 	//TODO: split this up into proper blocks, once we have more that 1024 resiudals 
@@ -206,4 +225,119 @@ void GaussNewtonSolver::elementwiseMultiplication(const int nElements, float* v1
 {
 	cuElementwiseMultiplication<<<1, nElements>>>(v1, v2, out);
 	cudaDeviceSynchronize();
+}
+
+void GaussNewtonSolver::mapRenderTargets(Face& face)
+{
+	if (face.m_graphics_settings.mapped_to_cuda)
+	{
+		std::cout << "map called, while rts already mapped" << std::endl;
+		return;
+	}
+	cudaGraphicsResource* ressources[] = { face.m_rt_rgb_cuda_ressource, face.m_rt_barycentrics_cuda_ressource, face.m_rt_vertex_id_cuda_ressource };
+	CHECK_CUDA_ERROR(cudaGraphicsMapResources(3, ressources, 0));
+
+	//will this leak? 
+	cudaArray* arr_rgb;
+	cudaArray* arr_bary;
+	cudaArray* arr_vert;
+	cudaChannelFormatDesc cfd = cudaCreateChannelDesc<float4>();
+	cudaTextureObject_t m_tex_rgb = 0;
+	cudaTextureObject_t m_tex_barycentrics = 0;
+	cudaTextureObject_t m_tex_vertex_ids = 0;
+
+	const textureReference* ref_tex_rgb;
+	cudaGetTextureReference(&ref_tex_rgb, &m_tex_rgb);
+
+	//ref_tex_rgb->normalized = 0;
+	//ref_tex_rgb->filterMode = cudaFilterModePoint;
+	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&arr_rgb, face.m_rt_rgb_cuda_ressource, 0, 0));
+	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&arr_bary, face.m_rt_barycentrics_cuda_ressource, 0, 0));
+	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&arr_vert, face.m_rt_vertex_id_cuda_ressource, 0, 0));
+
+	cudaTextureDesc desc;
+	memset(&desc, 0, sizeof(desc)); 
+	desc.filterMode = cudaFilterModePoint;
+	desc.addressMode[0] = desc.addressMode[1] = desc.addressMode[2] = cudaAddressModeClamp; 
+	desc.normalizedCoords = false; 
+	desc.readMode = cudaReadModeElementType; 
+
+	cudaResourceDesc res_desc; 
+	res_desc.resType = cudaResourceTypeArray; 
+	res_desc.res.array.array = arr_rgb; 
+
+	cudaResourceViewDesc res_view_desc;
+	memset(&res_view_desc, 0, sizeof(res_view_desc));
+	res_view_desc.width = face.m_graphics_settings.screen_width; 
+	res_view_desc.height = face.m_graphics_settings.screen_height; 
+	res_view_desc.format = cudaResViewFormatFloat4; 
+	
+
+	CHECK_CUDA_ERROR(cudaCreateTextureObject(&m_tex_rgb, &res_desc, &desc, 0));
+	CHECK_CUDA_ERROR(cudaCreateTextureObject(&m_tex_barycentrics, &res_desc, &desc, 0));
+	res_view_desc.format = cudaResViewFormatSignedInt4;
+
+	CHECK_CUDA_ERROR(cudaCreateTextureObject(&m_tex_vertex_ids, &res_desc, &desc, 0));
+
+	//CHECK_CUDA_ERROR(cudaBindTextureToArray(ref_tex_rgb, arr_rgb, &cfd));
+	//CHECK_CUDA_ERROR(cudaBindSurfaceToArray(&surf_rgb, arr_rgb, &cfd)); 
+	
+	//CHECK_CUDA_ERROR(cudaBindTextureToArray(&tex_barycentrics, arr_bary, &cfd));
+
+	//cfd.f = cudaChannelFormatKindSigned;
+	//res_view_desc.format = cudaResViewFormatSignedInt4;
+
+	//CHECK_CUDA_ERROR(cudaBindTextureToArray(&tex_vertex_ids, arr_vert, &cfd));
+	face.m_graphics_settings.mapped_to_cuda = true;
+
+
+	util::DeviceArray<float4> tmp(face.m_graphics_settings.screen_height*face.m_graphics_settings.screen_width) ;
+
+	int blocks = face.m_graphics_settings.screen_height * face.m_graphics_settings.screen_width / 256 +1;
+
+	cuSampleTextureToVector<<<blocks, 256 >>>(m_tex_rgb, tmp.getPtr(), face.m_graphics_settings.screen_height, face.m_graphics_settings.screen_width);
+
+	std::vector<float4> v(face.m_graphics_settings.screen_height * face.m_graphics_settings.screen_width);
+	util::copy(v, tmp, face.m_graphics_settings.screen_height*face.m_graphics_settings.screen_width);
+
+	float s = 0;
+	cv::Mat o = cv::Mat4f(face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height);
+	cv::Mat ox = cv::Mat3b(face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height);
+
+
+	//for (int y = 0; y < face.m_graphics_settings.screen_height; ++y)
+	//{
+	//	for (int x = 0; x < face.m_graphics_settings.screen_width; ++x)
+	//	{
+	//		float4 f = v[y*face.m_graphics_settings.screen_width + x];
+	//		o.at<cv::Vec4f>(y,x) = cv::Vec4f((float*)&f);
+	//		ox.at<cv::Vec3b>(y, x)[0] = f.x * 255;
+	//		ox.at<cv::Vec3b>(y, x)[1] = f.y * 255;
+	//		ox.at<cv::Vec3b>(y, x)[2] = f.z * 255;
+
+	//	}
+	//}
+	////cv::Mat gdmmt; 
+	////
+	////cv::cvtColor(ox, gdmmt, cv::COLOR_RGB2BGR);
+	//cv::imshow("test", ox);
+	//cv::waitKey(1); 
+}
+
+void GaussNewtonSolver::unmapRenderTargets(Face& face)
+{
+	if (!face.m_graphics_settings.mapped_to_cuda)
+	{
+		std::cout << "unmap called, while rts already unmapped" << std::endl;
+		return;
+	}
+
+	//cudaDestroyTextureObject(m_tex_rgb);
+	//cudaDestroyTextureObject(m_tex_barycentrics);
+	//cudaDestroyTextureObject(m_tex_vertex_ids);
+
+	cudaGraphicsResource* ressources[] = { face.m_rt_rgb_cuda_ressource, face.m_rt_barycentrics_cuda_ressource, face.m_rt_vertex_id_cuda_ressource };
+	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(3, ressources, 0));
+
+	face.m_graphics_settings.mapped_to_cuda = false;
 }
