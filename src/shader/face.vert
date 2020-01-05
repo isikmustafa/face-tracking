@@ -14,7 +14,7 @@ uniform mat4 projection;
 void main()
 {
     frag_albedo = color;
-	frag_normal = normalize(normal);
+	frag_normal = normalize(mat3(model) * normal);
 
     gl_Position = projection * model * vec4(position, 1.0f);
 }
