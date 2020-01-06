@@ -6,14 +6,17 @@
 #include <cassert>
 
 GLSLProgram::GLSLProgram(GLSLProgram&& rhs)
+	: m_program(rhs.m_program)
+	, m_shaders(std::move(rhs.m_shaders))
 {
-	m_program = rhs.m_program;
-	m_shaders = std::move(rhs.m_shaders);
 	rhs.m_program = 0;
 }
 
 GLSLProgram& GLSLProgram::operator=(GLSLProgram&& rhs)
 {
+	destroyProgram();
+	destroyShaders();
+
 	m_program = rhs.m_program;
 	m_shaders = std::move(rhs.m_shaders);
 	rhs.m_program = 0;
@@ -23,11 +26,8 @@ GLSLProgram& GLSLProgram::operator=(GLSLProgram&& rhs)
 
 GLSLProgram::~GLSLProgram()
 {
-	if (m_program)
-	{
-		glDeleteProgram(m_program);
-		m_program = 0;
-	}
+	destroyProgram();
+	destroyShaders();
 }
 
 void GLSLProgram::attachShader(GLenum shader_type, const std::string& shader_path)
@@ -80,6 +80,8 @@ void GLSLProgram::attachShader(GLenum shader_type, const std::string& shader_pat
 
 void GLSLProgram::link()
 {
+	destroyProgram();
+
 	m_program = glCreateProgram();
 	assert(m_program);
 
@@ -87,14 +89,9 @@ void GLSLProgram::link()
 	{
 		glAttachShader(m_program, shader);
 	}
-
 	glLinkProgram(m_program);
 
-	for (auto shader : m_shaders)
-	{
-		//Delete the shader as it is no longer necessary.
-		glDeleteShader(shader);
-	}
+	destroyShaders();
 
 	//Check errors, if any.
 	GLint success;
@@ -176,4 +173,23 @@ void GLSLProgram::setUniformFVVar(const std::string& name, const std::vector<GLf
 void GLSLProgram::setMat4(const std::string& name, const glm::mat4& matrix) const
 {
 	glUniformMatrix4fv(glGetUniformLocation(m_program, name.c_str()), 1, GL_FALSE, &matrix[0][0]);
+}
+
+void GLSLProgram::destroyProgram()
+{
+	if (m_program)
+	{
+		glDeleteProgram(m_program);
+		m_program = 0;
+	}
+}
+
+void GLSLProgram::destroyShaders()
+{
+	for (auto shader : m_shaders)
+	{
+		glDeleteShader(shader);
+	}
+
+	m_shaders.clear();
 }

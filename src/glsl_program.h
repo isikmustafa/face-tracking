@@ -31,4 +31,8 @@ public:
 private:
 	std::vector<GLuint> m_shaders;
 	GLuint m_program{ 0 };
+
+private:
+	void destroyProgram();
+	void destroyShaders();
 };

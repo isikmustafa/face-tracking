@@ -15,6 +15,19 @@ class GLSLProgram;
 class Face
 {
 public:
+	struct GraphicsSettings
+	{
+		GLuint framebuffer{ 0 };
+		cudaGraphicsResource_t rt_rgb_cuda_resource{ nullptr };
+		cudaGraphicsResource_t rt_barycentrics_cuda_resource{ nullptr };
+		cudaGraphicsResource_t rt_vertex_ids_cuda_resource{ nullptr };
+		const GLSLProgram* shader{ nullptr };
+		int screen_width{ 0 };
+		int screen_height{ 0 };
+		bool mapped_to_cuda{ false };
+	};
+
+public:
 	//Non-movable and non-copyable
 	Face(const std::string& morphable_model_directory);
 	Face(Face&) = delete;
@@ -27,9 +40,6 @@ public:
 	void computeNormals();
 	glm::mat4 computeModelMatrix() const;
 	void computeRotationDerivatives(glm::mat3& dRx, glm::mat3& dRy, glm::mat3& dRz) const;
-
-	void setRenderParameters(const GLuint framebuffer, const GLuint rt_rgb, const GLuint rt_barycentrics, const GLuint rt_vertex_ids,
-		GLSLProgram*const shader, const int screen_width, const int screen_height);
 
 	//Copies m_average_face_gpu to content of m_vertex_buffer.
 	void updateVertexBuffer();
@@ -45,6 +55,9 @@ public:
 	std::vector<float>& getSHCoefficients() { return m_sh_coefficients; }
 	const std::vector<float>& getSHCoefficients() const { return m_sh_coefficients; }
 
+	Face::GraphicsSettings& getGraphicsSettings() { return m_graphics_settings; }
+	const Face::GraphicsSettings& getGraphicsSettings() const { return m_graphics_settings; }
+
 	glm::vec3& getRotationCoefficients() { return m_rotation_coefficients; }
 	const glm::vec3& getRotationCoefficients() const { return m_rotation_coefficients; }
 	glm::vec3& getTranslationCoefficients() { return m_translation_coefficients; }
@@ -54,23 +67,7 @@ private:
 	friend class GaussNewtonSolver;
 
 private:
-
-	struct GraphicsSettings
-	{
-		GLuint framebuffer; 
-		GLuint rt_rgb; 
-		GLuint rt_barycentrics; 
-		GLuint rt_vertex_id; 
-		GLSLProgram* shader; 
-		int screen_width; 
-		int screen_height; 
-		bool mapped_to_cuda = false;
-	}; 
 	GraphicsSettings m_graphics_settings;
-
-	cudaGraphicsResource* m_rt_rgb_cuda_ressource{ nullptr };
-	cudaGraphicsResource* m_rt_barycentrics_cuda_ressource{ nullptr };
-	cudaGraphicsResource* m_rt_vertex_id_cuda_ressource{ nullptr };
 
 	GLuint m_vertex_array{ 0 };
 	GLuint m_vertex_buffer{ 0 };
@@ -79,10 +76,9 @@ private:
 	unsigned int m_number_of_indices{ 0 };
 	cudaGraphicsResource* m_resource{ nullptr };
 
-
-	std::vector<float> m_shape_basis; 
-	std::vector<float> m_albedo_basis; 
-	std::vector<float> m_expression_basis; 
+	std::vector<float> m_shape_basis;
+	std::vector<float> m_albedo_basis;
+	std::vector<float> m_expression_basis;
 
 	//Face vertex and color data.
 	util::DeviceArray<glm::vec3> m_average_face_gpu;

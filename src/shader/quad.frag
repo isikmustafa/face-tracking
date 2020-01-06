@@ -9,7 +9,7 @@ uniform sampler2D background;
 void main()
 {
 	vec4 face_color = texture(face, tex_coord);
-	if(face_color.w >0)
+	if(face_color.w > 0.0f)
 	{
 		color = face_color; 
 	}
