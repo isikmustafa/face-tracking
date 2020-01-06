@@ -490,7 +490,7 @@ void GaussNewtonSolver::mapRenderTargets(Face& face)
 
 	face.m_graphics_settings.mapped_to_cuda = true;
 
-	debugFrameBufferTextures(face, "..//..//rgb.png", "..//..//rgb-deferred.png");
+	//debugFrameBufferTextures(face, "..//..//rgb.png", "..//..//rgb-deferred.png");
 }
 
 void GaussNewtonSolver::unmapRenderTargets(Face& face)
