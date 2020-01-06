@@ -7,10 +7,10 @@ layout (location = 3) in vec2 tex_coord;
 
 out V2G
 {
- vec4 position;
- vec3 normal;
- vec3 albedo;
- int id; 
+	vec4 position;
+	vec3 normal;
+	vec3 albedo;
+	int id; 
 } vertex;
 
 uniform mat4 model;
@@ -19,8 +19,7 @@ uniform mat4 projection;
 void main()
 {
 	vertex.position = projection * model * vec4(position, 1.0f);
-    vertex.albedo = color;
 	vertex.normal = normalize(mat3(model) * normal);
+	vertex.albedo = color;
 	vertex.id = gl_VertexID; 
-//    gl_Position = projection * model * vec4(position, 1.0f);
 }

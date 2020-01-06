@@ -15,6 +15,7 @@ GaussNewtonSolver::GaussNewtonSolver()
 GaussNewtonSolver::~GaussNewtonSolver()
 {
 	cublasDestroy(m_cublas);
+	destroyTextures();
 }
 
 void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection)
@@ -438,5 +439,93 @@ void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::
 	{
 		auto c = face.m_expression_coefficients[i] + result[7 + nShapeCoeffs + i];
 		face.m_expression_coefficients[i] = glm::clamp(c, 0.0f, 1.0f);
+	}
+}
+
+void GaussNewtonSolver::mapRenderTargets(Face& face)
+{
+	if (face.m_graphics_settings.mapped_to_cuda)
+	{
+		std::cout << "Warning: mapRenderTargets is called while rts is already mapped!" << std::endl;
+		return;
+	}
+
+	cudaGraphicsResource* resources[] = { face.m_graphics_settings.rt_rgb_cuda_resource,
+		face.m_graphics_settings.rt_barycentrics_cuda_resource,
+		face.m_graphics_settings.rt_vertex_ids_cuda_resource };
+	CHECK_CUDA_ERROR(cudaGraphicsMapResources(3, resources, 0));
+
+	cudaArray* array_rgb{ nullptr };
+	cudaArray* array_barycentrics{ nullptr };
+	cudaArray* array_vertex_ids{ nullptr };
+
+	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&array_rgb, resources[0], 0, 0));
+	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&array_barycentrics, resources[1], 0, 0));
+	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&array_vertex_ids, resources[2], 0, 0));
+
+	//RGB texture
+	cudaResourceDesc res_desc;
+	memset(&res_desc, 0, sizeof(res_desc));
+	res_desc.resType = cudaResourceTypeArray;
+	res_desc.res.array.array = array_rgb;
+
+	cudaTextureDesc tex_desc;
+	memset(&tex_desc, 0, sizeof(tex_desc));
+	tex_desc.addressMode[0] = cudaTextureAddressMode(cudaAddressModeWrap);
+	tex_desc.addressMode[1] = cudaTextureAddressMode(cudaAddressModeWrap);
+	tex_desc.filterMode = cudaTextureFilterMode(cudaFilterModeLinear);
+	tex_desc.readMode = cudaReadModeNormalizedFloat;
+	tex_desc.normalizedCoords = 0;
+	CHECK_CUDA_ERROR(cudaCreateTextureObject(&m_texture_rgb, &res_desc, &tex_desc, nullptr));
+
+	//Barycentrics texture
+	res_desc.res.array.array = array_barycentrics;
+	tex_desc.filterMode = cudaTextureFilterMode(cudaFilterModePoint);
+	tex_desc.readMode = cudaReadModeElementType;
+	CHECK_CUDA_ERROR(cudaCreateTextureObject(&m_texture_barycentrics, &res_desc, &tex_desc, nullptr));
+
+	//Vertex ids texture
+	res_desc.res.array.array = array_vertex_ids;
+	CHECK_CUDA_ERROR(cudaCreateTextureObject(&m_texture_vertex_ids, &res_desc, &tex_desc, nullptr));
+
+	face.m_graphics_settings.mapped_to_cuda = true;
+
+	//debugFrameBufferTextures(face, "C://Users//Mustafa//Desktop//rgb.png", "C://Users//Mustafa//Desktop//rgb-deferred.png");
+}
+
+void GaussNewtonSolver::unmapRenderTargets(Face& face)
+{
+	if (!face.m_graphics_settings.mapped_to_cuda)
+	{
+		std::cout << "Warning: unmapRenderTargets is called while rts is already unmapped!" << std::endl;
+		return;
+	}
+
+	destroyTextures();
+
+	cudaGraphicsResource* resources[] = { face.m_graphics_settings.rt_rgb_cuda_resource,
+		face.m_graphics_settings.rt_barycentrics_cuda_resource,
+		face.m_graphics_settings.rt_vertex_ids_cuda_resource };
+	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(3, resources, 0));
+
+	face.m_graphics_settings.mapped_to_cuda = false;
+}
+
+void GaussNewtonSolver::destroyTextures()
+{
+	if (m_texture_rgb)
+	{
+		CHECK_CUDA_ERROR(cudaDestroyTextureObject(m_texture_rgb));
+		m_texture_rgb = 0;
+	}
+	if (m_texture_barycentrics)
+	{
+		m_texture_barycentrics = 0;
+		CHECK_CUDA_ERROR(cudaDestroyTextureObject(m_texture_barycentrics));
+	}
+	if (m_texture_vertex_ids)
+	{
+		CHECK_CUDA_ERROR(cudaDestroyTextureObject(m_texture_vertex_ids));
+		m_texture_vertex_ids = 0;
 	}
 }

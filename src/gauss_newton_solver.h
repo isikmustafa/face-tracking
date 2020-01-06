@@ -48,16 +48,12 @@ public:
 
 private:
 	cublasHandle_t m_cublas;
-
 	SolverParameters m_params;
+	cudaTextureObject_t m_texture_rgb{ 0 };
+	cudaTextureObject_t m_texture_barycentrics{ 0 };
+	cudaTextureObject_t m_texture_vertex_ids{ 0 };
 
-
-
-
-	void mapRenderTargets(Face& face);
-	void unmapRenderTargets(Face& face);
-
-
+private:
 	void computeJacobianSparseFeatures(
 		//shared memory
 		const int nFeatures,
@@ -90,4 +86,9 @@ private:
 
 	void updateParameters(const std::vector<float>& result, glm::mat4& projection,
 		glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face, const int nShapeCoeffs, const int nExpressionCoeffs);
+
+	void mapRenderTargets(Face& face);
+	void unmapRenderTargets(Face& face);
+	void debugFrameBufferTextures(Face& face, const std::string& rgb_filepath, const std::string& deferred_filepath);
+	void destroyTextures();
 };

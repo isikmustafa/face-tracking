@@ -7,11 +7,8 @@
 #include "device_array.h"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
-//texture<float4, cudaTextureType2D, cudaReadModeElementType> tex_rgb;
-//texture<float4, cudaTextureType2D, cudaReadModeElementType> tex_barycentrics;
-//texture<int4, cudaTextureType2D, cudaReadModeElementType> tex_vertex_ids;
 
-__global__ void cuComputeJacobianSparseFeatures( 
+__global__ void cuComputeJacobianSparseFeatures(
 	//shared memory
 	const int nFeatures,
 	const int nShapeCoeffs, const int nExpressionCoeffs,
@@ -19,16 +16,16 @@ __global__ void cuComputeJacobianSparseFeatures(
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal,
 	const float regularizationWeight,
 
-	glm::mat4 face_pose, glm::mat3 drx, glm::mat3 dry, glm::mat3 drz, glm::mat4 projection, Eigen::Matrix3f jacobian_local, 
+	glm::mat4 face_pose, glm::mat3 drx, glm::mat3 dry, glm::mat3 drz, glm::mat4 projection, Eigen::Matrix3f jacobian_local,
 
 	//device memory input
-	int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features, 
-	float* p_shape_basis,  float* p_expression_basis, float* p_coefficients_shape, float* p_coefficients_expression,
+	int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features,
+	float* p_shape_basis, float* p_expression_basis, float* p_coefficients_shape, float* p_coefficients_expression,
 
 	//device memory output
 	float* p_jacobian, float* p_residuals)
 {
-	int i = util::getThreadIndex1D(); 
+	int i = util::getThreadIndex1D();
 
 	Eigen::Map<Eigen::MatrixXf> jacobian(p_jacobian, nResiduals, nUnknowns);
 	Eigen::Map<Eigen::VectorXf> residuals(p_residuals, nResiduals);
@@ -147,11 +144,11 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 
 	//device memory output
 	float* p_jacobian, float* p_residuals
-) const 
+) const
 {
 	const int threads = nFeatures + m_params.num_shape_coefficients + m_params.num_expression_coefficients;
 
-	cuComputeJacobianSparseFeatures<<<1, threads>>> (
+	cuComputeJacobianSparseFeatures << <1, threads >> > (
 		//shared memory
 		nFeatures,
 		nShapeCoeffs, nExpressionCoeffs,
@@ -167,7 +164,7 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 
 		//device memory output
 		p_jacobian, p_residuals
-	);
+		);
 
 	cudaDeviceSynchronize();
 }
@@ -201,143 +198,104 @@ __global__ void cuElementwiseMultiplication(float* v1, float* v2, float* out)
 	out[i] = v1[i] * v2[i];
 }
 
-__global__ void cuSampleTextureToVector(cudaTextureObject_t tex, float4* memory, int H, int W)
+__global__ void textureRgbTestKernel(cudaTextureObject_t texture, float* arr, int width, int height)
 {
-	uint i = util::getThreadIndex1D();
-	if (i < H*W)
+	auto index = util::getThreadIndex2D();
+
+	if (index.x >= width || index.y >= height)
 	{
-		uint x = i / W; 
-		uint y = i - x * W;
-		memory[i] = tex2D<float4>(tex, x, y); 
+		return;
 	}
 
+	int y = height - 1 - index.y; // "height - 1 - index.y" is used since OpenGL uses left-bottom corner as texture origin.
+	float4 color = tex2D<float4>(texture, index.x, y);
+
+	auto idx = (index.x + index.y * width) * 3;
+	arr[idx] = color.x;
+	arr[idx + 1] = color.y;
+	arr[idx + 2] = color.z;
 }
 
+__global__ void textureBarycentricsVertexIdsTestKernel(cudaTextureObject_t texture_barycentrics, cudaTextureObject_t texture_vertex_ids, glm::vec3* albedos,
+	float* arr, int width, int height)
+{
+	auto index = util::getThreadIndex2D();
+
+	if (index.x >= width || index.y >= height)
+	{
+		return;
+	}
+
+	int y = height - 1 - index.y; // "height - 1 - index.y" is used since OpenGL uses left-bottom corner as texture origin.
+	float4 barycentrics_light = tex2D<float4>(texture_barycentrics, index.x, y); // barycentrics_light.w is light.
+	int4 vertex_ids = tex2D<int4>(texture_vertex_ids, index.x, y);
+
+	auto albedo_v0 = albedos[vertex_ids.x];
+	auto albedo_v1 = albedos[vertex_ids.y];
+	auto albedo_v2 = albedos[vertex_ids.z];
+
+	auto albedo = barycentrics_light.x * albedo_v0 + barycentrics_light.y * albedo_v1 + barycentrics_light.z * albedo_v2;
+	auto color = albedo * barycentrics_light.w;
+
+	auto idx = (index.x + index.y * width) * 3;
+	arr[idx] = color.x;
+	arr[idx + 1] = color.y;
+	arr[idx + 2] = color.z;
+}
 
 void GaussNewtonSolver::computeJacobiPreconditioner(const int nUnknowns, const int nResiduals, float* p_jacobian, float* p_preconditioner)
 {
 	//TODO: split this up into proper blocks, once we have more that 1024 resiudals 
-	cuComputeJacobiPreconditioner<<<nUnknowns, nResiduals, sizeof(float)*nResiduals>>>(nUnknowns, nResiduals, p_jacobian, p_preconditioner);
+	cuComputeJacobiPreconditioner << <nUnknowns, nResiduals, sizeof(float)*nResiduals >> > (nUnknowns, nResiduals, p_jacobian, p_preconditioner);
 	cudaDeviceSynchronize();
 }
 
 void GaussNewtonSolver::elementwiseMultiplication(const int nElements, float* v1, float* v2, float* out)
 {
-	cuElementwiseMultiplication<<<1, nElements>>>(v1, v2, out);
+	cuElementwiseMultiplication << <1, nElements >> > (v1, v2, out);
 	cudaDeviceSynchronize();
 }
 
-void GaussNewtonSolver::mapRenderTargets(Face& face)
+void GaussNewtonSolver::debugFrameBufferTextures(Face& face, const std::string& rgb_filepath, const std::string& deferred_filepath)
 {
-	if (face.m_graphics_settings.mapped_to_cuda)
+	int img_width = face.m_graphics_settings.screen_width;
+	int img_height = face.m_graphics_settings.screen_height;
+	util::DeviceArray<float> temp_memory(img_width * img_height * 3);
+
+	dim3 threads(16, 16);
+	dim3 blocks(img_width / threads.x + 1, img_height / threads.y + 1);
+
+	textureRgbTestKernel << <blocks, threads >> > (m_texture_rgb, temp_memory.getPtr(), img_width, img_height);
+
+	std::vector<float> temp_memory_host(img_width * img_height * 3);
+	util::copy(temp_memory_host, temp_memory, temp_memory.getSize());
+
+	cv::Mat image(cv::Size(img_width, img_height), CV_8UC3);
+	for (int y = 0; y < image.rows; y++)
 	{
-		std::cout << "map called, while rts already mapped" << std::endl;
-		return;
+		for (int x = 0; x < image.cols; x++)
+		{
+			auto idx = (x + y * img_width) * 3;
+
+			// OpenCV expects it to be an BGRA image.
+			image.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(temp_memory_host[idx + 2], temp_memory_host[idx + 1], temp_memory_host[idx]));
+		}
 	}
-	cudaGraphicsResource* ressources[] = { face.m_rt_rgb_cuda_ressource, face.m_rt_barycentrics_cuda_ressource, face.m_rt_vertex_id_cuda_ressource };
-	CHECK_CUDA_ERROR(cudaGraphicsMapResources(3, ressources, 0));
+	cv::imwrite(rgb_filepath, image);
 
-	//will this leak? 
-	cudaArray* arr_rgb;
-	cudaArray* arr_bary;
-	cudaArray* arr_vert;
-	cudaChannelFormatDesc cfd = cudaCreateChannelDesc<float4>();
-	cudaTextureObject_t m_tex_rgb = 0;
-	cudaTextureObject_t m_tex_barycentrics = 0;
-	cudaTextureObject_t m_tex_vertex_ids = 0;
+	textureBarycentricsVertexIdsTestKernel << <blocks, threads >> > (m_texture_barycentrics, m_texture_vertex_ids, face.m_current_face_gpu.getPtr() + face.m_number_of_vertices,
+		temp_memory.getPtr(), img_width, img_height);
 
-	const textureReference* ref_tex_rgb;
-	cudaGetTextureReference(&ref_tex_rgb, &m_tex_rgb);
-
-	//ref_tex_rgb->normalized = 0;
-	//ref_tex_rgb->filterMode = cudaFilterModePoint;
-	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&arr_rgb, face.m_rt_rgb_cuda_ressource, 0, 0));
-	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&arr_bary, face.m_rt_barycentrics_cuda_ressource, 0, 0));
-	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&arr_vert, face.m_rt_vertex_id_cuda_ressource, 0, 0));
-
-	cudaTextureDesc desc;
-	memset(&desc, 0, sizeof(desc)); 
-	desc.filterMode = cudaFilterModePoint;
-	desc.addressMode[0] = desc.addressMode[1] = desc.addressMode[2] = cudaAddressModeClamp; 
-	desc.normalizedCoords = false; 
-	desc.readMode = cudaReadModeElementType; 
-
-	cudaResourceDesc res_desc; 
-	res_desc.resType = cudaResourceTypeArray; 
-	res_desc.res.array.array = arr_rgb; 
-
-	cudaResourceViewDesc res_view_desc;
-	memset(&res_view_desc, 0, sizeof(res_view_desc));
-	res_view_desc.width = face.m_graphics_settings.screen_width; 
-	res_view_desc.height = face.m_graphics_settings.screen_height; 
-	res_view_desc.format = cudaResViewFormatFloat4; 
-	
-
-	CHECK_CUDA_ERROR(cudaCreateTextureObject(&m_tex_rgb, &res_desc, &desc, 0));
-	CHECK_CUDA_ERROR(cudaCreateTextureObject(&m_tex_barycentrics, &res_desc, &desc, 0));
-	res_view_desc.format = cudaResViewFormatSignedInt4;
-
-	CHECK_CUDA_ERROR(cudaCreateTextureObject(&m_tex_vertex_ids, &res_desc, &desc, 0));
-
-	//CHECK_CUDA_ERROR(cudaBindTextureToArray(ref_tex_rgb, arr_rgb, &cfd));
-	//CHECK_CUDA_ERROR(cudaBindSurfaceToArray(&surf_rgb, arr_rgb, &cfd)); 
-	
-	//CHECK_CUDA_ERROR(cudaBindTextureToArray(&tex_barycentrics, arr_bary, &cfd));
-
-	//cfd.f = cudaChannelFormatKindSigned;
-	//res_view_desc.format = cudaResViewFormatSignedInt4;
-
-	//CHECK_CUDA_ERROR(cudaBindTextureToArray(&tex_vertex_ids, arr_vert, &cfd));
-	face.m_graphics_settings.mapped_to_cuda = true;
-
-
-	util::DeviceArray<float4> tmp(face.m_graphics_settings.screen_height*face.m_graphics_settings.screen_width) ;
-
-	int blocks = face.m_graphics_settings.screen_height * face.m_graphics_settings.screen_width / 256 +1;
-
-	cuSampleTextureToVector<<<blocks, 256 >>>(m_tex_rgb, tmp.getPtr(), face.m_graphics_settings.screen_height, face.m_graphics_settings.screen_width);
-
-	std::vector<float4> v(face.m_graphics_settings.screen_height * face.m_graphics_settings.screen_width);
-	util::copy(v, tmp, face.m_graphics_settings.screen_height*face.m_graphics_settings.screen_width);
-
-	float s = 0;
-	cv::Mat o = cv::Mat4f(face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height);
-	cv::Mat ox = cv::Mat3b(face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height);
-
-
-	//for (int y = 0; y < face.m_graphics_settings.screen_height; ++y)
-	//{
-	//	for (int x = 0; x < face.m_graphics_settings.screen_width; ++x)
-	//	{
-	//		float4 f = v[y*face.m_graphics_settings.screen_width + x];
-	//		o.at<cv::Vec4f>(y,x) = cv::Vec4f((float*)&f);
-	//		ox.at<cv::Vec3b>(y, x)[0] = f.x * 255;
-	//		ox.at<cv::Vec3b>(y, x)[1] = f.y * 255;
-	//		ox.at<cv::Vec3b>(y, x)[2] = f.z * 255;
-
-	//	}
-	//}
-	////cv::Mat gdmmt; 
-	////
-	////cv::cvtColor(ox, gdmmt, cv::COLOR_RGB2BGR);
-	//cv::imshow("test", ox);
-	//cv::waitKey(1); 
-}
-
-void GaussNewtonSolver::unmapRenderTargets(Face& face)
-{
-	if (!face.m_graphics_settings.mapped_to_cuda)
+	util::copy(temp_memory_host, temp_memory, temp_memory.getSize());
+	for (int y = 0; y < image.rows; y++)
 	{
-		std::cout << "unmap called, while rts already unmapped" << std::endl;
-		return;
+		for (int x = 0; x < image.cols; x++)
+		{
+			auto idx = (x + y * img_width) * 3;
+
+			// OpenCV expects it to be an BGRA image.
+			image.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(temp_memory_host[idx + 2], temp_memory_host[idx + 1], temp_memory_host[idx]));
+		}
 	}
-
-	//cudaDestroyTextureObject(m_tex_rgb);
-	//cudaDestroyTextureObject(m_tex_barycentrics);
-	//cudaDestroyTextureObject(m_tex_vertex_ids);
-
-	cudaGraphicsResource* ressources[] = { face.m_rt_rgb_cuda_ressource, face.m_rt_barycentrics_cuda_ressource, face.m_rt_vertex_id_cuda_ressource };
-	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(3, ressources, 0));
-
-	face.m_graphics_settings.mapped_to_cuda = false;
+	cv::imwrite(deferred_filepath, image);
 }
