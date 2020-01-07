@@ -213,7 +213,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
 	{
 		face.computeFace();
-		face.draw(); 
+		face.draw();
 
 		auto face_pose = face.computeModelMatrix();
 		jacobian_local <<
@@ -224,7 +224,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		glm::mat3 drx, dry, drz;
 		face.computeRotationDerivatives(drx, dry, drz);
 
-		mapRenderTargets(face); 
+		mapRenderTargets(face);
 
 		//CUDA
 		computeJacobianSparseFeatures(
@@ -243,7 +243,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
 		);
 
-		unmapRenderTargets(face); 
+		unmapRenderTargets(face);
 
 		//Apply step and update poses GPU
 		solveUpdateCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
@@ -341,7 +341,7 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 
 		//zTr
 		cublasSdot(cublas, nUnknowns, z.getPtr(), 1, r.getPtr(), 1, &zTr);
-		
+
 		if (zTr < m_params.kTolerance)
 		{
 			break;
@@ -490,7 +490,7 @@ void GaussNewtonSolver::mapRenderTargets(Face& face)
 
 	face.m_graphics_settings.mapped_to_cuda = true;
 
-	//debugFrameBufferTextures(face, "C://Users//Mustafa//Desktop//rgb.png", "C://Users//Mustafa//Desktop//rgb-deferred.png");
+	//debugFrameBufferTextures(face, "..//..//rgb.png", "..//..//rgb-deferred.png");
 }
 
 void GaussNewtonSolver::unmapRenderTargets(Face& face)
