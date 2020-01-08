@@ -10,17 +10,30 @@
 
 __global__ void cuComputeJacobianSparseFeatures(
 	//shared memory
-	const int nFeatures,
-	const int nShapeCoeffs, const int nExpressionCoeffs,
+	const int nFeatures, const int imageWidth, const int imageHeight,
+	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
 	const int nUnknowns, const int nResiduals,
-	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal,
+	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
 	const float regularizationWeight,
+
+	float* image,
 
 	glm::mat4 face_pose, glm::mat3 drx, glm::mat3 dry, glm::mat3 drz, glm::mat4 projection, Eigen::Matrix3f jacobian_local,
 
 	//device memory input
 	int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features,
-	float* p_shape_basis, float* p_expression_basis, float* p_coefficients_shape, float* p_coefficients_expression,
+
+	float* p_shape_basis,
+	float* p_expression_basis,
+	float* p_albedo_basis,
+
+	float* p_coefficients_shape,
+	float* p_coefficients_expression,
+	float* p_coefficients_albedo,
+
+	cudaTextureObject_t rgb,
+	cudaTextureObject_t barycentrics,
+	cudaTextureObject_t vertex_ids,
 
 	//device memory output
 	float* p_jacobian, float* p_residuals)
@@ -33,18 +46,24 @@ __global__ void cuComputeJacobianSparseFeatures(
 	int offset_rows = nFeatures * 2;
 	int offset_cols = 7;
 
-	// Regularization terms
-	if (i >= nFeatures)
-	{
-		const int current_index = i - nFeatures;
-		const int shift = current_index >= nShapeCoeffs ? nShapeCoeffs : 0;
+	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
 
-		offset_rows += shift;
-		offset_cols += shift;
+	// Regularization terms
+
+	if (i >= nResiduals - nFaceCoeffs)
+	{
+		const int shape_expression = nShapeCoeffs + nExpressionCoeffs;
+		const int current_index = i - nResiduals - nFaceCoeffs;
+		const int shift = current_index >= nShapeCoeffs ?
+			current_index >= shape_expression ? shape_expression : nShapeCoeffs : 0;
+
+		offset_rows = shift;
+		offset_cols = shift;
 
 		const int relative_index = current_index - shift;
 
-		const float coefficient = shift > 0 ? p_coefficients_expression[relative_index] : p_coefficients_shape[relative_index];
+		const float coefficient = shift == 0 ? p_coefficients_shape[relative_index] : shift == nShapeCoeffs ?
+			p_coefficients_expression[relative_index] : p_coefficients_albedo[relative_index];
 
 		auto sqrt_wreg = glm::sqrt(regularizationWeight);
 		jacobian(offset_rows + relative_index, offset_cols + relative_index) = sqrt_wreg;
@@ -55,6 +74,19 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 	Eigen::Map<Eigen::MatrixXf> shape_basis(p_shape_basis, nVerticesTimes3, nShapeCoeffsTotal);
 	Eigen::Map<Eigen::MatrixXf> expression_basis(p_expression_basis, nVerticesTimes3, nExpressionCoeffsTotal);
+	Eigen::Map<Eigen::MatrixXf> albedo_basis(p_albedo_basis, nVerticesTimes3, nAlbedoCoeffsTotal);
+
+	// Dense terms
+
+	if (i >= nFeatures)
+	{
+		int y = imageHeight - 1 - blockIdx.x;
+		int x = threadIdx.x;
+		float4 color = tex2D<float4>(rgb, x, y);
+		return;
+	}
+
+	// Sparse terms
 
 	Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
 
@@ -130,41 +162,66 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 void GaussNewtonSolver::computeJacobianSparseFeatures(
 	//shared memory
-	const int nFeatures,
-	const int nShapeCoeffs, const int nExpressionCoeffs,
+	const int nFeatures, const int imageWidth, const int imageHeight,
+	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
 	const int nUnknowns, const int nResiduals,
-	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal,
+	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
 	const float regularizationWeight,
+
+	float* image,
 
 	const glm::mat4& face_pose, const glm::mat3& drx, const glm::mat3& dry, const glm::mat3& drz, const glm::mat4& projection, const Eigen::Matrix3f& jacobian_local,
 
 	//device memory input
 	int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features,
-	float* p_shape_basis, float* p_expression_basis, float* p_coefficients_shape, float* p_coefficients_expression,
+
+	float* p_shape_basis,
+	float* p_expression_basis,
+	float* p_albedo_basis,
+
+	float* p_coefficients_shape,
+	float* p_coefficients_expression,
+	float* p_coefficients_albedo,
 
 	//device memory output
 	float* p_jacobian, float* p_residuals
 ) const
 {
-	const int threads = nFeatures + m_params.num_shape_coefficients + m_params.num_expression_coefficients;
+	const int nPixels = imageWidth * imageHeight;
+	const int n = nFeatures + nPixels + m_params.num_shape_coefficients + m_params.num_expression_coefficients + m_params.num_albedo_coefficients;
 
-	cuComputeJacobianSparseFeatures << <1, threads >> > (
+	const int threads = 256;
+	const int block = (n + threads - 1) / threads;
+
+	cuComputeJacobianSparseFeatures << <block, threads >> > (
 		//shared memory
-		nFeatures,
-		nShapeCoeffs, nExpressionCoeffs,
+		nFeatures, imageWidth, imageHeight,
+		nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs,
 		nUnknowns, nResiduals,
-		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal,
+		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal, nAlbedoCoeffsTotal,
 		regularizationWeight,
+
+		image,
 
 		face_pose, drx, dry, drz, projection, jacobian_local,
 
 		//device memory input
 		prior_local_ids, current_face, sparse_features,
-		p_shape_basis, p_expression_basis, p_coefficients_shape, p_coefficients_expression,
+
+		p_shape_basis,
+		p_expression_basis,
+		p_albedo_basis,
+
+		p_coefficients_shape,
+		p_coefficients_expression,
+		p_coefficients_albedo,
+
+		m_texture_rgb,
+		m_texture_barycentrics,
+		m_texture_vertex_ids,
 
 		//device memory output
-		p_jacobian, p_residuals
-		);
+		p_jacobian, p_residuals);
 
 	cudaDeviceSynchronize();
 }

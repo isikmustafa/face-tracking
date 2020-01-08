@@ -178,18 +178,20 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 	}
 }
 
-void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection)
+void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Face& face, cv::Mat& frame, glm::mat4& projection)
 {
 	if (sparse_features.empty()) //no tracking -> cublas doesnt like a getting matrix/vector of size 0
 	{
 		return;
 	}
 
+	const int nPixels = face.m_graphics_settings.screen_width * face.m_graphics_settings.screen_height;
 	const int nFeatures = sparse_features.size();
 	const int nShapeCoeffs = m_params.num_shape_coefficients;
 	const int nExpressionCoeffs = m_params.num_expression_coefficients;
-	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs;
-	const int nResiduals = 2 * nFeatures + nFaceCoeffs; //nFaceCoeffs -> regularizer
+	const int nAlbedoCoeffs = m_params.num_albedo_coefficients;
+	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
+	const int nResiduals = 2 * nFeatures + 3 * nPixels + nFaceCoeffs; //nFaceCoeffs -> regularizer
 	const int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics. Plus nFaceCoeffs for face parameters.
 
 	const float wReg = std::powf(10, m_params.regularisation_weight_exponent);
@@ -199,7 +201,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	auto& translation_coefficients = face.getTranslationCoefficients();
 
 	//TODO: Allocate all of the objects below once. So, move them out of here.
-	auto jacobian_gpu = util::DeviceArray<float>(nUnknowns * nResiduals);
+	auto jacobian_gpu = util::DeviceArray<float>(nResiduals * nUnknowns);
 	auto residuals_gpu = util::DeviceArray<float>(nResiduals);
 	auto result_gpu = util::DeviceArray<float>(nUnknowns);
 	std::vector<float> result(nUnknowns);
@@ -229,15 +231,28 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		//CUDA
 		computeJacobianSparseFeatures(
 			//shared memory
-			nFeatures, nShapeCoeffs, nExpressionCoeffs, nUnknowns, nResiduals,
-			face.m_number_of_vertices * 3, face.m_shape_coefficients.size(), face.m_expression_coefficients.size(),
+			nFeatures, face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height,
+			nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nUnknowns, nResiduals,
+			face.m_number_of_vertices * 3,
+			face.m_shape_coefficients.size(),
+			face.m_expression_coefficients.size(),
+			face.m_albedo_coefficients.size(),
 			wReg,
+
+			reinterpret_cast<float*>(frame.data),
 
 			face_pose, drx, dry, drz, projection, jacobian_local,
 
 			//device memory input
 			ids_gpu.getPtr(), face.m_current_face_gpu.getPtr(), key_pts_gpu.getPtr(),
-			face.m_shape_basis_gpu.getPtr(), face.m_expression_basis_gpu.getPtr(), face.m_shape_coefficients_gpu.getPtr(), face.m_expression_basis_gpu.getPtr(),
+
+			face.m_shape_basis_gpu.getPtr(),
+			face.m_expression_basis_gpu.getPtr(),
+			face.m_albedo_basis_gpu.getPtr(),
+
+			face.m_shape_coefficients_gpu.getPtr(),
+			face.m_expression_coefficients_gpu.getPtr(),
+			face.m_albedo_coefficients_gpu.getPtr(),
 
 			//device memory output
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
