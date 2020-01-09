@@ -14,7 +14,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
 	const int nUnknowns, const int nResiduals,
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
-	const float regularizationWeight,
+	const float sqrt_wreg,
 
 	float* image,
 
@@ -59,6 +59,8 @@ __global__ void cuComputeJacobianSparseFeatures(
 		{
 			const int shape_expression = nShapeCoeffs + nExpressionCoeffs;
 			const int current_index = i - nResiduals - nFaceCoeffs;
+			// Range of offset for each coefficient
+			// 0 -> nShapeCoeffs -> (nShapeCoeffs + nExpressionCoeffs)
 			const int shift = current_index >= nShapeCoeffs ?
 				current_index >= shape_expression ? shape_expression : nShapeCoeffs : 0;
 
@@ -67,10 +69,10 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 			const int relative_index = current_index - shift;
 
+			// Depending which shift is used the proper coefficient is selected
 			const float coefficient = shift == 0 ? p_coefficients_shape[relative_index] : shift == nShapeCoeffs ?
 				p_coefficients_expression[relative_index] : p_coefficients_albedo[relative_index];
 
-			auto sqrt_wreg = glm::sqrt(regularizationWeight);
 			jacobian(offset_rows + relative_index, offset_cols + relative_index) = sqrt_wreg;
 			residuals(offset_rows + relative_index) = coefficient * sqrt_wreg;
 
@@ -85,8 +87,8 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 		if (i >= nFeatures)
 		{
-			int y = imageHeight - 1 - blockIdx.x;
-			int x = threadIdx.x;
+			int y = 0;
+			int x = 0;
 			float4 color = tex2D<float4>(rgb, x, y);
 			return;
 		}
@@ -205,7 +207,7 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 		nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs,
 		nUnknowns, nResiduals,
 		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal, nAlbedoCoeffsTotal,
-		regularizationWeight,
+		glm::sqrt(regularizationWeight),
 
 		image,
 
