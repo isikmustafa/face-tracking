@@ -208,6 +208,9 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	auto ids_gpu = util::DeviceArray<int>(prior_local_ids);
 	auto key_pts_gpu = util::DeviceArray<glm::vec2>(sparse_features);
 
+	jacobian_gpu.memset(0);
+	residuals_gpu.memset(0);
+
 	//Some parts of jacobians are constants. That's why thet are intialized here only once.
 	//Do not touch them inside the for loops.
 	Eigen::Matrix<float, 3, 3> jacobian_local = Eigen::MatrixXf::Zero(3, 3);

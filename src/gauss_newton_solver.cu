@@ -87,9 +87,15 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 		if (i >= nFeatures)
 		{
-			int y = 0;
-			int x = 0;
-			float4 color = tex2D<float4>(rgb, x, y);
+			// Placeholders
+			residuals(i * 3) = 0;
+			residuals(i * 3 + 1) = 0;
+			residuals(i * 3 + 2) = 0;
+
+			jacobian.block(i * 3, 7, 3, nShapeCoeffs) = Eigen::MatrixXf::Zero(3, nShapeCoeffs);
+			jacobian.block(i * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) = Eigen::MatrixXf::Zero(3, nExpressionCoeffs);
+			jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = Eigen::MatrixXf::Zero(3, nAlbedoCoeffs);
+
 			return;
 		}
 
