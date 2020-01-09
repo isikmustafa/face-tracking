@@ -50,7 +50,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 		Eigen::Map<Eigen::MatrixXf> jacobian(p_jacobian, nResiduals, nUnknowns);
 		Eigen::Map<Eigen::VectorXf> residuals(p_residuals, nResiduals);
 
-		int offset_rows = nFeatures * 2;
+		int offset_rows = nFeatures * 2 + nPixels * 3;
 		int offset_cols = 7;
 
 		// Regularization terms
@@ -62,8 +62,8 @@ __global__ void cuComputeJacobianSparseFeatures(
 			const int shift = current_index >= nShapeCoeffs ?
 				current_index >= shape_expression ? shape_expression : nShapeCoeffs : 0;
 
-			offset_rows = shift;
-			offset_cols = shift;
+			offset_rows += shift;
+			offset_cols += shift;
 
 			const int relative_index = current_index - shift;
 
