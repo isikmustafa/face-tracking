@@ -81,7 +81,7 @@ void Application::run()
 		m_window.refresh();
 
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
-		m_solver.solve(sparse_features, m_face, m_projection);
+		m_solver.solve(sparse_features, m_face, raw_frame, m_projection);
 		//m_solver.solve_CPU(sparse_features, m_face, m_projection);
 
 		auto end_frame = std::chrono::high_resolution_clock::now();

@@ -2,6 +2,7 @@
 
 #include "face.h"
 #include <Eigen/Dense>
+#include "opencv2/highgui/highgui.hpp"
 
 //Default
 struct SolverParameters
@@ -40,7 +41,7 @@ public:
 	GaussNewtonSolver();
 	~GaussNewtonSolver();
 
-	void solve(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection);
+	void solve(const std::vector<glm::vec2>& sparse_features, Face& face, cv::Mat& frame, glm::mat4& projection);
 	void solve_CPU(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection);
 
 	SolverParameters& getSolverParameters() { return m_params; }
@@ -56,36 +57,45 @@ private:
 private:
 	void computeJacobianSparseFeatures(
 		//shared memory
-		const int nFeatures,
-		const int nShapeCoeffs, const int nExpressionCoeffs,
-		const int nUnknowns, const int nResiduals,
-		const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal,
-		const float regularizationWeight,
+		int nFeatures, const int imageWidth, const int imageHeight,
+		int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs,
+		int nUnknowns, int nResiduals,
+		int nVerticesTimes3, int nShapeCoeffsTotal, int nExpressionCoeffsTotal, int nAlbedoCoeffsTotal,
+		float regularizationWeight,
+
+		float* image,
 
 		const glm::mat4& face_pose, const glm::mat3& drx, const glm::mat3& dry, const glm::mat3& drz, const glm::mat4& projection, const Eigen::Matrix3f& jacobian_local,
 
 		//device memory input
 		int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features,
-		float* p_shape_basis, float* p_expression_basis, float* p_coefficients_shape, float* p_coefficients_expression,
+
+		float* p_shape_basis, 
+		float* p_expression_basis, 
+		float* p_albedo_basis, 
+		
+		float* p_coefficients_shape, 
+		float* p_coefficients_expression,
+		float* p_coefficients_albedo,
 
 		//device memory output
 		float* p_jacobian, float* p_residuals) const;
 
-	void elementwiseMultiplication(const int nElements, float* v1, float* v2, float* out);
+	void elementwiseMultiplication(int nElements, float* v1, float* v2, float* out);
 
-	void computeJacobiPreconditioner(const int nUnknowns, const int nResiduals, float* p_jacobian, float* p_preconditioner);
+	void computeJacobiPreconditioner(int nUnknowns, int nResiduals, float* p_jacobian, float* p_preconditioner);
 
-	void solveUpdateCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
-		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
+	void solveUpdateCG(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
+		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
-	void solveUpdatePCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
-		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
+	void solveUpdatePCG(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
+		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
-	void solveUpdateLU(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
-		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS = 1, const float alphaRHS = 1);
+	void solveUpdateLU(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
+		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
 	void updateParameters(const std::vector<float>& result, glm::mat4& projection,
-		glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face, const int nShapeCoeffs, const int nExpressionCoeffs);
+		glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face, int nShapeCoeffs, int nExpressionCoeffs);
 
 	void mapRenderTargets(Face& face);
 	void unmapRenderTargets(Face& face);

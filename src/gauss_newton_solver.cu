@@ -10,161 +10,232 @@
 
 __global__ void cuComputeJacobianSparseFeatures(
 	//shared memory
-	const int nFeatures,
-	const int nShapeCoeffs, const int nExpressionCoeffs,
+	const int nFeatures, const int imageWidth, const int imageHeight,
+	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
 	const int nUnknowns, const int nResiduals,
-	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal,
-	const float regularizationWeight,
+	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
+	const float sqrt_wreg,
+
+	float* image,
 
 	glm::mat4 face_pose, glm::mat3 drx, glm::mat3 dry, glm::mat3 drz, glm::mat4 projection, Eigen::Matrix3f jacobian_local,
 
 	//device memory input
 	int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features,
-	float* p_shape_basis, float* p_expression_basis, float* p_coefficients_shape, float* p_coefficients_expression,
+
+	float* p_shape_basis,
+	float* p_expression_basis,
+	float* p_albedo_basis,
+
+	float* p_coefficients_shape,
+	float* p_coefficients_expression,
+	float* p_coefficients_albedo,
+
+	cudaTextureObject_t rgb,
+	cudaTextureObject_t barycentrics,
+	cudaTextureObject_t vertex_ids,
 
 	//device memory output
 	float* p_jacobian, float* p_residuals)
 {
-	int i = util::getThreadIndex1D();
+	int index = util::getThreadIndex1D();
+	int stride = blockDim.x * gridDim.x;
 
-	Eigen::Map<Eigen::MatrixXf> jacobian(p_jacobian, nResiduals, nUnknowns);
-	Eigen::Map<Eigen::VectorXf> residuals(p_residuals, nResiduals);
+	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
+	const int nPixels = imageWidth * imageHeight;
+	const int n = nFeatures + nPixels + nFaceCoeffs;
 
-	int offset_rows = nFeatures * 2;
-	int offset_cols = 7;
-
-	// Regularization terms
-	if (i >= nFeatures)
+	for (int i = index; i < n; i += stride)
 	{
-		const int current_index = i - nFeatures;
-		const int shift = current_index >= nShapeCoeffs ? nShapeCoeffs : 0;
+		Eigen::Map<Eigen::MatrixXf> jacobian(p_jacobian, nResiduals, nUnknowns);
+		Eigen::Map<Eigen::VectorXf> residuals(p_residuals, nResiduals);
 
-		offset_rows += shift;
-		offset_cols += shift;
+		int offset_rows = nFeatures * 2 + nPixels * 3;
+		int offset_cols = 7;
 
-		const int relative_index = current_index - shift;
+		// Regularization terms
 
-		const float coefficient = shift > 0 ? p_coefficients_expression[relative_index] : p_coefficients_shape[relative_index];
+		if (i >= nResiduals - nFaceCoeffs)
+		{
+			const int shape_expression = nShapeCoeffs + nExpressionCoeffs;
+			const int current_index = i - nResiduals - nFaceCoeffs;
+			// Range of offset for each coefficient
+			// 0 -> nShapeCoeffs -> (nShapeCoeffs + nExpressionCoeffs)
+			const int shift = current_index >= nShapeCoeffs ?
+				current_index >= shape_expression ? shape_expression : nShapeCoeffs : 0;
 
-		auto sqrt_wreg = glm::sqrt(regularizationWeight);
-		jacobian(offset_rows + relative_index, offset_cols + relative_index) = sqrt_wreg;
-		residuals(offset_rows + relative_index) = coefficient * sqrt_wreg;
+			offset_rows += shift;
+			offset_cols += shift;
 
-		return;
+			const int relative_index = current_index - shift;
+
+			// Depending which shift is used the proper coefficient is selected
+			const float coefficient = shift == 0 ? p_coefficients_shape[relative_index] : shift == nShapeCoeffs ?
+				p_coefficients_expression[relative_index] : p_coefficients_albedo[relative_index];
+
+			jacobian(offset_rows + relative_index, offset_cols + relative_index) = sqrt_wreg;
+			residuals(offset_rows + relative_index) = coefficient * sqrt_wreg;
+
+			return;
+		}
+
+		Eigen::Map<Eigen::MatrixXf> shape_basis(p_shape_basis, nVerticesTimes3, nShapeCoeffsTotal);
+		Eigen::Map<Eigen::MatrixXf> expression_basis(p_expression_basis, nVerticesTimes3, nExpressionCoeffsTotal);
+		Eigen::Map<Eigen::MatrixXf> albedo_basis(p_albedo_basis, nVerticesTimes3, nAlbedoCoeffsTotal);
+
+		// Dense terms
+
+		if (i >= nFeatures)
+		{
+			// Placeholders
+			residuals(i * 3) = 0;
+			residuals(i * 3 + 1) = 0;
+			residuals(i * 3 + 2) = 0;
+
+			jacobian.block(i * 3, 7, 3, nShapeCoeffs) = Eigen::MatrixXf::Zero(3, nShapeCoeffs);
+			jacobian.block(i * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) = Eigen::MatrixXf::Zero(3, nExpressionCoeffs);
+			jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = Eigen::MatrixXf::Zero(3, nAlbedoCoeffs);
+
+			return;
+		}
+
+		// Sparse terms
+
+		Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
+
+		Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
+		jacobian_world(1, 1) = projection[1][1];
+		jacobian_world(2, 2) = -1.0f;
+
+		Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
+
+		Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
+		jacobian_pose(0, 3) = 1.0f;
+		jacobian_pose(1, 4) = 1.0f;
+		jacobian_pose(2, 5) = 1.0f;
+
+		auto vertex_id = prior_local_ids[i];
+		auto local_coord = current_face[vertex_id];
+
+		auto world_coord = face_pose * glm::vec4(local_coord, 1.0f);
+		auto proj_coord = projection * world_coord;
+		auto uv = glm::vec2(proj_coord.x, proj_coord.y) / proj_coord.w;
+
+		//Residual
+		auto residual = uv - sparse_features[i];
+
+		residuals(i * 2) = residual.x;
+		residuals(i * 2 + 1) = residual.y;
+
+		//Jacobian for homogenization (AKA division by w)
+		auto one_over_wp = 1.0f / proj_coord.w;
+		jacobian_proj(0, 0) = one_over_wp;
+		jacobian_proj(0, 2) = -proj_coord.x * one_over_wp * one_over_wp;
+
+		jacobian_proj(1, 1) = one_over_wp;
+		jacobian_proj(1, 2) = -proj_coord.y * one_over_wp * one_over_wp;
+
+		//Jacobian for projection
+		jacobian_world(0, 0) = projection[0][0];
+
+		//Jacobian for intrinsics
+		jacobian_intrinsics(0, 0) = world_coord.x;
+		jacobian.block<2, 1>(i * 2, 0) = jacobian_proj * jacobian_intrinsics;
+
+		//Derivative of world coordinates with respect to rotation coefficients
+		auto dx = drx * local_coord;
+		auto dy = dry * local_coord;
+		auto dz = drz * local_coord;
+
+		jacobian_pose(0, 0) = dx[0];
+		jacobian_pose(1, 0) = dx[1];
+		jacobian_pose(2, 0) = dx[2];
+		jacobian_pose(0, 1) = dy[0];
+		jacobian_pose(1, 1) = dy[1];
+		jacobian_pose(2, 1) = dy[2];
+		jacobian_pose(0, 2) = dz[0];
+		jacobian_pose(1, 2) = dz[1];
+		jacobian_pose(2, 2) = dz[2];
+
+		auto jacobian_proj_world = jacobian_proj * jacobian_world;
+		jacobian.block<2, 6>(i * 2, 1) = jacobian_proj_world * jacobian_pose;
+
+		//Derivative of world coordinates with respect to local coordinates.
+		//This is basically the rotation matrix.
+		auto jacobian_proj_world_local = jacobian_proj_world * jacobian_local;
+
+		//Derivative of local coordinates with respect to shape and expression parameters
+		//This is basically the corresponding (to unique vertices we have chosen) rows of basis matrices.
+		auto jacobian_shape = jacobian_proj_world_local * shape_basis.block(3 * vertex_id, 0, 3, nShapeCoeffs);
+		jacobian.block(i * 2, 7, 2, nShapeCoeffs) = jacobian_shape;
+
+		auto jacobian_expression = jacobian_proj_world_local * expression_basis.block(3 * vertex_id, 0, 3, nExpressionCoeffs);
+		jacobian.block(i * 2, 7 + nShapeCoeffs, 2, nExpressionCoeffs) = jacobian_expression;
 	}
-
-	Eigen::Map<Eigen::MatrixXf> shape_basis(p_shape_basis, nVerticesTimes3, nShapeCoeffsTotal);
-	Eigen::Map<Eigen::MatrixXf> expression_basis(p_expression_basis, nVerticesTimes3, nExpressionCoeffsTotal);
-
-	Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
-
-	Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
-	jacobian_world(1, 1) = projection[1][1];
-	jacobian_world(2, 2) = -1.0f;
-
-	Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
-
-	Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
-	jacobian_pose(0, 3) = 1.0f;
-	jacobian_pose(1, 4) = 1.0f;
-	jacobian_pose(2, 5) = 1.0f;
-
-	auto vertex_id = prior_local_ids[i];
-	auto local_coord = current_face[vertex_id];
-
-	auto world_coord = face_pose * glm::vec4(local_coord, 1.0f);
-	auto proj_coord = projection * world_coord;
-	auto uv = glm::vec2(proj_coord.x, proj_coord.y) / proj_coord.w;
-
-	//Residual
-	auto residual = uv - sparse_features[i];
-
-	residuals(i * 2) = residual.x;
-	residuals(i * 2 + 1) = residual.y;
-
-	//Jacobian for homogenization (AKA division by w)
-	auto one_over_wp = 1.0f / proj_coord.w;
-	jacobian_proj(0, 0) = one_over_wp;
-	jacobian_proj(0, 2) = -proj_coord.x * one_over_wp * one_over_wp;
-
-	jacobian_proj(1, 1) = one_over_wp;
-	jacobian_proj(1, 2) = -proj_coord.y * one_over_wp * one_over_wp;
-
-	//Jacobian for projection
-	jacobian_world(0, 0) = projection[0][0];
-
-	//Jacobian for intrinsics
-	jacobian_intrinsics(0, 0) = world_coord.x;
-	jacobian.block<2, 1>(i * 2, 0) = jacobian_proj * jacobian_intrinsics;
-
-	//Derivative of world coordinates with respect to rotation coefficients
-	auto dx = drx * local_coord;
-	auto dy = dry * local_coord;
-	auto dz = drz * local_coord;
-
-	jacobian_pose(0, 0) = dx[0];
-	jacobian_pose(1, 0) = dx[1];
-	jacobian_pose(2, 0) = dx[2];
-	jacobian_pose(0, 1) = dy[0];
-	jacobian_pose(1, 1) = dy[1];
-	jacobian_pose(2, 1) = dy[2];
-	jacobian_pose(0, 2) = dz[0];
-	jacobian_pose(1, 2) = dz[1];
-	jacobian_pose(2, 2) = dz[2];
-
-	auto jacobian_proj_world = jacobian_proj * jacobian_world;
-	jacobian.block<2, 6>(i * 2, 1) = jacobian_proj_world * jacobian_pose;
-
-	//Derivative of world coordinates with respect to local coordinates.
-	//This is basically the rotation matrix.
-	auto jacobian_proj_world_local = jacobian_proj_world * jacobian_local;
-
-	//Derivative of local coordinates with respect to shape and expression parameters
-	//This is basically the corresponding (to unique vertices we have chosen) rows of basis matrices.
-	auto jacobian_shape = jacobian_proj_world_local * shape_basis.block(3 * vertex_id, 0, 3, nShapeCoeffs);
-	jacobian.block(i * 2, 7, 2, nShapeCoeffs) = jacobian_shape;
-
-	auto jacobian_expression = jacobian_proj_world_local * expression_basis.block(3 * vertex_id, 0, 3, nExpressionCoeffs);
-	jacobian.block(i * 2, 7 + nShapeCoeffs, 2, nExpressionCoeffs) = jacobian_expression;
 }
 
 void GaussNewtonSolver::computeJacobianSparseFeatures(
 	//shared memory
-	const int nFeatures,
-	const int nShapeCoeffs, const int nExpressionCoeffs,
+	const int nFeatures, const int imageWidth, const int imageHeight,
+	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
 	const int nUnknowns, const int nResiduals,
-	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal,
+	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
 	const float regularizationWeight,
+
+	float* image,
 
 	const glm::mat4& face_pose, const glm::mat3& drx, const glm::mat3& dry, const glm::mat3& drz, const glm::mat4& projection, const Eigen::Matrix3f& jacobian_local,
 
 	//device memory input
 	int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features,
-	float* p_shape_basis, float* p_expression_basis, float* p_coefficients_shape, float* p_coefficients_expression,
+
+	float* p_shape_basis,
+	float* p_expression_basis,
+	float* p_albedo_basis,
+
+	float* p_coefficients_shape,
+	float* p_coefficients_expression,
+	float* p_coefficients_albedo,
 
 	//device memory output
 	float* p_jacobian, float* p_residuals
 ) const
 {
-	const int threads = nFeatures + m_params.num_shape_coefficients + m_params.num_expression_coefficients;
+	const int nPixels = imageWidth * imageHeight;
+	const int n = nFeatures + nPixels + m_params.num_shape_coefficients + m_params.num_expression_coefficients + m_params.num_albedo_coefficients;
 
-	cuComputeJacobianSparseFeatures << <1, threads >> > (
+	const int threads = 256;
+	const int block = (n + threads - 1) / threads;
+
+	cuComputeJacobianSparseFeatures << <block, threads >> > (
 		//shared memory
-		nFeatures,
-		nShapeCoeffs, nExpressionCoeffs,
+		nFeatures, imageWidth, imageHeight,
+		nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs,
 		nUnknowns, nResiduals,
-		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal,
-		regularizationWeight,
+		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal, nAlbedoCoeffsTotal,
+		glm::sqrt(regularizationWeight),
+
+		image,
 
 		face_pose, drx, dry, drz, projection, jacobian_local,
 
 		//device memory input
 		prior_local_ids, current_face, sparse_features,
-		p_shape_basis, p_expression_basis, p_coefficients_shape, p_coefficients_expression,
+
+		p_shape_basis,
+		p_expression_basis,
+		p_albedo_basis,
+
+		p_coefficients_shape,
+		p_coefficients_expression,
+		p_coefficients_albedo,
+
+		m_texture_rgb,
+		m_texture_barycentrics,
+		m_texture_vertex_ids,
 
 		//device memory output
-		p_jacobian, p_residuals
-		);
+		p_jacobian, p_residuals);
 
 	cudaDeviceSynchronize();
 }
