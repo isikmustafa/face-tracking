@@ -170,7 +170,7 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 		solveUpdateCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
 		util::copy(result, result_gpu, nUnknowns);
 
-		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs);
+		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs, 0);
 
 		/*std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
 		std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
@@ -274,7 +274,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		solveUpdateCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
 		util::copy(result, result_gpu, nUnknowns);
 
-		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs);
+		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);
 	}
 }
 
@@ -440,7 +440,7 @@ void GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int nU
 
 void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::mat4& projection,
 	glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face,
-	const int nShapeCoeffs, const int nExpressionCoeffs)
+	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs)
 {
 	projection[0][0] += result[0];
 
@@ -464,6 +464,13 @@ void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::
 	{
 		auto c = face.m_expression_coefficients[i] + result[7 + nShapeCoeffs + i];
 		face.m_expression_coefficients[i] = glm::clamp(c, 0.0f, 1.0f);
+	}
+
+#pragma omp parallel for
+	for (int i = 0; i < nAlbedoCoeffs; ++i)
+	{
+		auto c = face.m_albedo_coefficients[i] + result[7 + nShapeCoeffs + nExpressionCoeffs + i];
+		face.m_albedo_coefficients[i] = glm::clamp(c, 0.0f, 1.0f);
 	}
 }
 

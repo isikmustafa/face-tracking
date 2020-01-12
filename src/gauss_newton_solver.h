@@ -13,7 +13,7 @@ struct SolverParameters
 	int num_pcg_iterations = 15;
 
 	int num_shape_coefficients = 30;
-	int num_albedo_coefficients = 0;
+	int num_albedo_coefficients = 30;
 	int num_expression_coefficients = 76;
 
 	const float kNearZero = 1.0e-8;		// interpretation of "zero"
@@ -95,7 +95,7 @@ private:
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
 	void updateParameters(const std::vector<float>& result, glm::mat4& projection,
-		glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face, int nShapeCoeffs, int nExpressionCoeffs);
+		glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face, int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs);
 
 	void mapRenderTargets(Face& face);
 	void unmapRenderTargets(Face& face);
