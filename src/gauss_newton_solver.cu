@@ -112,9 +112,11 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 			// Albedo
 
-			auto A = bary_sampled.x * albedo_basis.block(3 * verts_s.x, 0, 3, nAlbedoCoeffs);
-			auto B = bary_sampled.y * albedo_basis.block(3 * verts_s.y, 0, 3, nAlbedoCoeffs);
-			auto C = bary_sampled.z * albedo_basis.block(3 * verts_s.z, 0, 3, nAlbedoCoeffs);
+			auto light = bary_sampled.w;
+
+			auto A = light * bary_sampled.x * albedo_basis.block(3 * verts_s.x, 0, 3, nAlbedoCoeffs);
+			auto B = light * bary_sampled.y * albedo_basis.block(3 * verts_s.y, 0, 3, nAlbedoCoeffs);
+			auto C = light * bary_sampled.z * albedo_basis.block(3 * verts_s.z, 0, 3, nAlbedoCoeffs);
 
 			jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = A + B + C;
 

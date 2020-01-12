@@ -470,7 +470,7 @@ void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::
 	for (int i = 0; i < nAlbedoCoeffs; ++i)
 	{
 		auto c = face.m_albedo_coefficients[i] + result[7 + nShapeCoeffs + nExpressionCoeffs + i];
-		face.m_albedo_coefficients[i] = glm::clamp(c, 0.0f, 1.0f);
+		face.m_albedo_coefficients[i] = c;
 	}
 }
 
