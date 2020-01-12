@@ -211,9 +211,8 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	cv::Mat processed_frame;
 	cv::resize(frame, processed_frame, cv::Size(face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height));
 	cv::cvtColor(processed_frame, processed_frame, cv::COLOR_BGR2RGB);
-	util::DeviceArray<uchar> frame_gpu = util::DeviceArray<uchar>(3 * nPixels); 
-	util::copy(frame_gpu, processed_frame.data, 3 * nPixels); 
-
+	util::DeviceArray<uchar> frame_gpu = util::DeviceArray<uchar>(3 * nPixels);
+	util::copy(frame_gpu, processed_frame.data, 3 * nPixels);
 
 	jacobian_gpu.memset(0);
 	residuals_gpu.memset(0);
@@ -237,9 +236,9 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		face.computeRotationDerivatives(drx, dry, drz);
 
 		mapRenderTargets(face);
-	//	debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
+		//	debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
 
-		//CUDA
+			//CUDA
 		computeJacobianSparseFeatures(
 			//shared memory
 			nFeatures, face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height,

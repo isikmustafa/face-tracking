@@ -87,38 +87,41 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 		if (i >= nFeatures)
 		{
-			int idx = (i - nFeatures); 
+			int idx = i - nFeatures;
 			int xp = idx % imageWidth;
 			int yp = idx / imageWidth;
-			idx *= 3; 
+			idx *= 3;
 
-			int ygl = imageHeight - 1 - yp; // "height - 1 - index.y" is used since OpenGL uses left-bottom corner as texture origin.
+			int ygl = imageHeight - 1 - yp; // "height - 1 - index.y" OpenGL uses left-bottom corner as texture origin.
 			float4 face_rgb_sampled = tex2D<float4>(rgb, xp, ygl);
+
 			if (face_rgb_sampled.w < 1.0f) return; // pixel is not covered by face
 
 			float4 bary_sampled = tex2D<float4>(barycentrics, xp, ygl);
 			int4 verts_s = tex2D<int4>(vertex_ids, xp, ygl);
-			Eigen::Map<Eigen::Vector3f> face_rgb((float*)&face_rgb_sampled); 
-			Eigen::Vector3f frame_rgb; 
-			frame_rgb.x() = image[idx] / 256.0f;
-			frame_rgb.y() = image[idx + 1] / 256.0f;
-			frame_rgb.z() = image[idx + 2] / 256.0f;
+			Eigen::Map<Eigen::Vector3f> face_rgb(reinterpret_cast<float*>(&face_rgb_sampled));
+			Eigen::Vector3f frame_rgb;
 
+			frame_rgb.x() = image[idx] / 255.0f;
+			frame_rgb.y() = image[idx + 1] / 255.0f;
+			frame_rgb.z() = image[idx + 2] / 255.0f;
 
-			Eigen::Vector3f residual = face_rgb - frame_rgb; 
-			residuals.block(i*3, 0, 3, 1) = residual; 
+			Eigen::Vector3f residual = face_rgb - frame_rgb;
 
+			residuals.block(i * 3, 0, 3, 1) = residual;
 
+			// Albedo
 
+			auto A = bary_sampled.x * albedo_basis.block(3 * verts_s.x, 0, 3, nAlbedoCoeffs);
+			auto B = bary_sampled.y * albedo_basis.block(3 * verts_s.y, 0, 3, nAlbedoCoeffs);
+			auto C = bary_sampled.z * albedo_basis.block(3 * verts_s.z, 0, 3, nAlbedoCoeffs);
 
-			//// Placeholders
-			//residuals(i * 3) = 0;
-			//residuals(i * 3 + 1) = 0;
-			//residuals(i * 3 + 2) = 0;
+			jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = A + B + C;
 
-			//jacobian.block(i * 3, 7, 3, nShapeCoeffs) = Eigen::MatrixXf::Zero(3, nShapeCoeffs);
-			//jacobian.block(i * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) = Eigen::MatrixXf::Zero(3, nExpressionCoeffs);
-			//jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = Eigen::MatrixXf::Zero(3, nAlbedoCoeffs);
+			// Shape and expression
+			jacobian.block(i * 3, 7, 3, nShapeCoeffs) = Eigen::MatrixXf::Zero(3, nShapeCoeffs);
+			jacobian.block(i * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) = Eigen::MatrixXf::Zero(3, nExpressionCoeffs);
+
 			return;
 		}
 
