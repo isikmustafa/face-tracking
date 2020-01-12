@@ -7,7 +7,7 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 
-__global__ void textureRgbTestKernel(cudaTextureObject_t texture, float* arr, int width, int height)
+__global__ void textureRgbTestKernel(cudaTextureObject_t texture, uchar* frame, float* arr, int width, int height)
 {
 	auto index = util::getThreadIndex2D();
 
@@ -20,9 +20,20 @@ __global__ void textureRgbTestKernel(cudaTextureObject_t texture, float* arr, in
 	float4 color = tex2D<float4>(texture, index.x, y);
 
 	auto idx = (index.x + index.y * width) * 3;
-	arr[idx] = color.x;
-	arr[idx + 1] = color.y;
-	arr[idx + 2] = color.z;
+
+	if (color.w > 0)
+	{
+		arr[idx] = color.x;
+		arr[idx + 1] = color.y;
+		arr[idx + 2] = color.z;
+	}
+	else
+	{
+		arr[idx] = frame[idx]/256.0;
+		arr[idx + 1] = frame[idx+1] / 256.0;
+		arr[idx + 2] = frame[idx+2] / 256.0;
+	}
+
 }
 
 __global__ void textureBarycentricsVertexIdsTestKernel(cudaTextureObject_t texture_barycentrics, cudaTextureObject_t texture_vertex_ids, glm::vec3* albedos,
@@ -52,7 +63,7 @@ __global__ void textureBarycentricsVertexIdsTestKernel(cudaTextureObject_t textu
 	arr[idx + 2] = color.z;
 }
 
-void GaussNewtonSolver::debugFrameBufferTextures(Face& face, const std::string& rgb_filepath, const std::string& deferred_filepath)
+void GaussNewtonSolver::debugFrameBufferTextures(Face& face, uchar* frame, const std::string& rgb_filepath, const std::string& deferred_filepath)
 {
 	int img_width = face.m_graphics_settings.screen_width;
 	int img_height = face.m_graphics_settings.screen_height;
@@ -61,7 +72,7 @@ void GaussNewtonSolver::debugFrameBufferTextures(Face& face, const std::string& 
 	dim3 threads(16, 16);
 	dim3 blocks(img_width / threads.x + 1, img_height / threads.y + 1);
 
-	textureRgbTestKernel << <blocks, threads >> > (m_texture_rgb, temp_memory.getPtr(), img_width, img_height);
+	textureRgbTestKernel << <blocks, threads >> > (m_texture_rgb, frame, temp_memory.getPtr(), img_width, img_height);
 
 	std::vector<float> temp_memory_host(img_width * img_height * 3);
 	util::copy(temp_memory_host, temp_memory, temp_memory.getSize());

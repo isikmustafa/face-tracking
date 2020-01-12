@@ -16,7 +16,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
 	const float sqrt_wreg,
 
-	float* image,
+	uchar* image,
 
 	glm::mat4 face_pose, glm::mat3 drx, glm::mat3 dry, glm::mat3 drz, glm::mat4 projection, Eigen::Matrix3f jacobian_local,
 
@@ -182,7 +182,7 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
 	const float regularizationWeight,
 
-	float* image,
+	uchar* image,
 
 	const glm::mat4& face_pose, const glm::mat3& drx, const glm::mat3& dry, const glm::mat3& drz, const glm::mat4& projection, const Eigen::Matrix3f& jacobian_local,
 

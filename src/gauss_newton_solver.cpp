@@ -208,6 +208,13 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	auto ids_gpu = util::DeviceArray<int>(prior_local_ids);
 	auto key_pts_gpu = util::DeviceArray<glm::vec2>(sparse_features);
 
+	cv::Mat processed_frame;
+	cv::resize(frame, processed_frame, cv::Size(face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height));
+	cv::cvtColor(processed_frame, processed_frame, cv::COLOR_BGR2RGB);
+	util::DeviceArray<uchar> frame_gpu = util::DeviceArray<uchar>(3 * nPixels); 
+	util::copy(frame_gpu, processed_frame.data, 3 * nPixels); 
+
+
 	jacobian_gpu.memset(0);
 	residuals_gpu.memset(0);
 
@@ -230,6 +237,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		face.computeRotationDerivatives(drx, dry, drz);
 
 		mapRenderTargets(face);
+	//	debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
 
 		//CUDA
 		computeJacobianSparseFeatures(
@@ -242,7 +250,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			face.m_albedo_coefficients.size(),
 			wReg,
 
-			reinterpret_cast<float*>(frame.data),
+			frame_gpu.getPtr(),
 
 			face_pose, drx, dry, drz, projection, jacobian_local,
 
@@ -507,8 +515,6 @@ void GaussNewtonSolver::mapRenderTargets(Face& face)
 	CHECK_CUDA_ERROR(cudaCreateTextureObject(&m_texture_vertex_ids, &res_desc, &tex_desc, nullptr));
 
 	face.m_graphics_settings.mapped_to_cuda = true;
-
-	//debugFrameBufferTextures(face, "..//..//rgb.png", "..//..//rgb-deferred.png");
 }
 
 void GaussNewtonSolver::unmapRenderTargets(Face& face)

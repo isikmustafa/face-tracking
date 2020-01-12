@@ -9,8 +9,10 @@
 #include "opencv2/highgui/highgui.hpp"
 #include <chrono>
 
-constexpr int kScreenWidth = 1200;
-constexpr int kScreenHeight = 900;
+//constexpr int kScreenWidth = 1200;
+//constexpr int kScreenHeight = 900;
+constexpr int kScreenWidth = 640;
+constexpr int kScreenHeight = 360;
 constexpr glm::ivec2 kGuiPosition(0, 0);
 constexpr glm::ivec2 kGuiSize(240, kScreenHeight);
 
@@ -24,8 +26,8 @@ Application::Application()
 	, m_menu(kGuiPosition, kGuiSize)
 	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {
-	m_camera = cv::VideoCapture(0);
-	//m_camera = cv::VideoCapture("./demo.mp4");
+	//m_camera = cv::VideoCapture(0);
+	m_camera = cv::VideoCapture("./demo.mp4");
 }
 
 Application::~Application()
@@ -64,10 +66,6 @@ void Application::run()
 			reloadShaders();
 		}
 
-		m_face.computeFace();
-		m_face.updateVertexBuffer();
-		m_face.draw();
-
 		cv::Mat raw_frame;
 		if (!m_camera.read(raw_frame))
 		{
@@ -76,13 +74,18 @@ void Application::run()
 		cv::Mat frame;
 		cv::pyrDown(raw_frame, frame);
 
-		draw(raw_frame);
-		m_menu.draw();
-		m_window.refresh();
-
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
 		m_solver.solve(sparse_features, m_face, raw_frame, m_projection);
 		//m_solver.solve_CPU(sparse_features, m_face, m_projection);
+
+
+		m_face.computeFace();
+		m_face.updateVertexBuffer();
+		m_face.draw();
+
+		draw(raw_frame);
+		m_menu.draw();
+		m_window.refresh();
 
 		auto end_frame = std::chrono::high_resolution_clock::now();
 		m_frame_time = std::chrono::duration_cast<std::chrono::microseconds>(end_frame - start_frame).count() / 1000.0;

@@ -3,7 +3,7 @@
 #include "face.h"
 #include <Eigen/Dense>
 #include "opencv2/highgui/highgui.hpp"
-
+#include "opencv2/imgproc/imgproc.hpp"
 //Default
 struct SolverParameters
 {
@@ -63,7 +63,7 @@ private:
 		int nVerticesTimes3, int nShapeCoeffsTotal, int nExpressionCoeffsTotal, int nAlbedoCoeffsTotal,
 		float regularizationWeight,
 
-		float* image,
+		uchar* image,
 
 		const glm::mat4& face_pose, const glm::mat3& drx, const glm::mat3& dry, const glm::mat3& drz, const glm::mat4& projection, const Eigen::Matrix3f& jacobian_local,
 
@@ -99,6 +99,6 @@ private:
 
 	void mapRenderTargets(Face& face);
 	void unmapRenderTargets(Face& face);
-	void debugFrameBufferTextures(Face& face, const std::string& rgb_filepath, const std::string& deferred_filepath);
+	void debugFrameBufferTextures(Face& face, uchar* frame, const std::string& rgb_filepath, const std::string& deferred_filepath);
 	void destroyTextures();
 };
