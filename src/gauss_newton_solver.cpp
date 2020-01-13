@@ -236,9 +236,9 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		face.computeRotationDerivatives(drx, dry, drz);
 
 		mapRenderTargets(face);
-		//	debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
+		// debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
 
-			//CUDA
+		//CUDA
 		computeJacobianSparseFeatures(
 			//shared memory
 			nFeatures, face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height,

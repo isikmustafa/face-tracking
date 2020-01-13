@@ -29,9 +29,9 @@ __global__ void textureRgbTestKernel(cudaTextureObject_t texture, uchar* frame, 
 	}
 	else
 	{
-		arr[idx] = frame[idx]/256.0;
-		arr[idx + 1] = frame[idx+1] / 256.0;
-		arr[idx + 2] = frame[idx+2] / 256.0;
+		arr[idx] = frame[idx] / 255.0;
+		arr[idx + 1] = frame[idx + 1] / 255.0;
+		arr[idx + 2] = frame[idx + 2] / 255.0;
 	}
 
 }
