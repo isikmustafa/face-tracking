@@ -16,7 +16,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
 	const float wsparse, const float wdense, const float sqrt_wreg,
 
-	uchar* image,
+	uchar* image, float* debug_frame, 
 
 	glm::mat4 face_pose, glm::mat3 drx, glm::mat3 dry, glm::mat3 drz, glm::mat4 projection, Eigen::Matrix3f jacobian_local,
 
@@ -94,6 +94,24 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 			int ygl = imageHeight - 1 - yp; // "height - 1 - index.y" OpenGL uses left-bottom corner as texture origin.
 			float4 face_rgb_sampled = tex2D<float4>(rgb, xp, ygl);
+
+			////test
+
+			//if (face_rgb_sampled.w > 0)
+			//{
+			//	debug_frame[idx] = face_rgb_sampled.x;
+			//	debug_frame[idx + 1] = face_rgb_sampled.y;
+			//	debug_frame[idx + 2] = face_rgb_sampled.z;
+			//}
+			//else
+			//{
+			//	debug_frame[idx] = image[idx] / 255.0;
+			//	debug_frame[idx + 1] = image[idx + 1] / 255.0;
+			//	debug_frame[idx + 2] = image[idx + 2] / 255.0;
+			//}
+
+			////end test
+
 
 			if (face_rgb_sampled.w < 1.0f) return; // pixel is not covered by face
 
@@ -234,6 +252,9 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 
 	const int threads = 256;
 	const int block = (n + threads - 1) / threads;
+
+	util::DeviceArray<float> temp_memory(nPixels * 3);
+	
 	cuComputeJacobianSparseFeatures << <block, threads >> > (
 		//shared memory
 		nFeatures, imageWidth, imageHeight,
@@ -242,7 +263,7 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal, nAlbedoCoeffsTotal,
 		sparseWeight / nFeatures, denseWeight, glm::sqrt(regularizationWeight),
 
-		image,
+		image, temp_memory.getPtr(),
 
 		face_pose, drx, dry, drz, projection, jacobian_local,
 
@@ -265,6 +286,25 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 		p_jacobian, p_residuals);
 
 	cudaDeviceSynchronize();
+
+	//std::vector<float> temp_memory_host(nPixels * 3);
+	//util::copy(temp_memory_host, temp_memory, temp_memory.getSize());
+
+	//cv::Mat image_debug(cv::Size(imageWidth, imageHeight), CV_8UC3);
+	//for (int y = 0; y < image_debug.rows; y++)
+	//{
+	//	for (int x = 0; x < image_debug.cols; x++)
+	//	{
+	//		auto idx = (x + y * imageWidth) * 3;
+
+	//		// OpenCV expects it to be an BGRA image.
+	//		image_debug.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(temp_memory_host[idx + 2], temp_memory_host[idx + 1], temp_memory_host[idx]));
+	//	}
+	//}
+	//cv::imwrite("../../dense_test.png", image_debug);
+
+
+
 }
 
 __global__ void cuComputeJacobiPreconditioner(const int nUnknowns, const int nResiduals, float* p_jacobian, float* p_preconditioner)
