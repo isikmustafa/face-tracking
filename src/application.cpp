@@ -96,6 +96,20 @@ void Application::run()
 
 void Application::initMenuWidgets()
 {
+	auto gpu_memory_info_gui = [this]()
+	{
+		ImGui::Text("Frame Time: %.1f ms", m_frame_time);
+
+		size_t free, total;
+		CHECK_CUDA_ERROR(cudaMemGetInfo(&free, &total));
+
+		ImGui::Text("Free  GPU Memory: %.1f MB", free / (1024.0f * 1024.0f));
+		ImGui::Text("Total GPU Memory: %.1f MB", total / (1024.0f * 1024.0f));
+
+		ImGui::Separator();
+	};
+	m_menu.attach(std::move(gpu_memory_info_gui));
+
 	auto& shape_coefficients = m_face.getShapeCoefficients();
 	auto shape_parameters_gui = [&shape_coefficients]()
 	{
@@ -164,23 +178,9 @@ void Application::initMenuWidgets()
 		ImGui::SliderInt("SH Parameters", &solver_parameters.num_sh_coefficients, 0, 9);
 
 		ImGui::SliderInt("Expression Parameters", &solver_parameters.num_expression_coefficients, 0, 76);
-	};
-	m_menu.attach(std::move(opt_parameters));
-
-	auto gpu_memory_info_gui = [this]()
-	{
-		ImGui::Separator();
-		ImGui::Text("Frame Time: %.1f ms", m_frame_time);
-
-		size_t free, total;
-		CHECK_CUDA_ERROR(cudaMemGetInfo(&free, &total));
-
-		ImGui::Text("Free  GPU Memory: %.1f MB", free / (1024.0f * 1024.0f));
-		ImGui::Text("Total GPU Memory: %.1f MB", total / (1024.0f * 1024.0f));
-
 		ImGui::End();
 	};
-	m_menu.attach(std::move(gpu_memory_info_gui));
+	m_menu.attach(std::move(opt_parameters));
 }
 
 void Application::initGraphics()
@@ -265,8 +265,8 @@ void Application::reloadShaders()
 	graphics_settings.shader = &m_face_shader;
 	graphics_settings.screen_width = kScreenWidth;
 	graphics_settings.screen_height = kScreenHeight;
-	graphics_settings.texture_width = kTextureWidth; 
-	graphics_settings.texture_height = kTextureHeight; 
+	graphics_settings.texture_width = kTextureWidth;
+	graphics_settings.texture_height = kTextureHeight;
 	graphics_settings.mapped_to_cuda = false;
 }
 
