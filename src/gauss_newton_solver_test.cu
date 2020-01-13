@@ -10,15 +10,12 @@
 __global__ void textureRgbTestKernel(cudaTextureObject_t texture, uchar* frame, float* arr, int width, int height)
 {
 	auto index = util::getThreadIndex2D();
-
 	if (index.x >= width || index.y >= height)
 	{
 		return;
 	}
-
 	int y = height - 1 - index.y; // "height - 1 - index.y" is used since OpenGL uses left-bottom corner as texture origin.
 	float4 color = tex2D<float4>(texture, index.x, y);
-
 	auto idx = (index.x + index.y * width) * 3;
 
 	if (color.w > 0)
@@ -33,7 +30,6 @@ __global__ void textureRgbTestKernel(cudaTextureObject_t texture, uchar* frame, 
 		arr[idx + 1] = frame[idx + 1] / 255.0;
 		arr[idx + 2] = frame[idx + 2] / 255.0;
 	}
-
 }
 
 __global__ void textureBarycentricsVertexIdsTestKernel(cudaTextureObject_t texture_barycentrics, cudaTextureObject_t texture_vertex_ids, glm::vec3* albedos,

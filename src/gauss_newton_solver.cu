@@ -57,7 +57,6 @@ __global__ void cuComputeJacobianSparseFeatures(
 	for (int i = index; i < n; i += stride)
 	{
 		// Regularization terms
-
 		if (i >= nResiduals - nFaceCoeffs)
 		{
 			const int shape_expression = nShapeCoeffs + nExpressionCoeffs;
@@ -83,7 +82,6 @@ __global__ void cuComputeJacobianSparseFeatures(
 		}
 
 		// Dense terms
-
 		if (i >= nFeatures)
 		{
 			int idx = i - nFeatures;
@@ -95,7 +93,6 @@ __global__ void cuComputeJacobianSparseFeatures(
 			float4 face_rgb_sampled = tex2D<float4>(rgb, xp, ygl);
 
 #ifdef TEST_TEXTURE
-
 			if (face_rgb_sampled.w > 0)
 			{
 				debug_frame[idx] = face_rgb_sampled.x;
@@ -109,8 +106,6 @@ __global__ void cuComputeJacobianSparseFeatures(
 				debug_frame[idx + 2] = image[idx + 2] / 255.0;
 			}
 #endif // TEST_TEXTURE
-
-
 
 			if (face_rgb_sampled.w < 1.0f) return; // pixel is not covered by face
 
@@ -297,25 +292,18 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 #ifdef TEST_TEXTURE
 	std::vector<float> temp_memory_host(nPixels * 3);
 	util::copy(temp_memory_host, temp_memory, temp_memory.getSize());
-
 	cv::Mat image_debug(cv::Size(imageWidth, imageHeight), CV_8UC3);
 	for (int y = 0; y < image_debug.rows; y++)
 	{
 		for (int x = 0; x < image_debug.cols; x++)
 		{
 			auto idx = (x + y * imageWidth) * 3;
-
 			// OpenCV expects it to be an BGRA image.
 			image_debug.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(temp_memory_host[idx + 2], temp_memory_host[idx + 1], temp_memory_host[idx]));
 		}
 	}
 	cv::imwrite("../../dense_test.png", image_debug);
 #endif // TEST_TEXTURE
-
-
-
-
-
 }
 
 __global__ void cuComputeJacobiPreconditioner(const int nUnknowns, const int nResiduals, float* p_jacobian, float* p_preconditioner)

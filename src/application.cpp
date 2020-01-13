@@ -61,7 +61,6 @@ void Application::run()
 		auto start_frame = std::chrono::high_resolution_clock::now();
 
 		glfwPollEvents();
-
 		if (glfwGetKey(m_window.getGLFWWindow(), GLFW_KEY_F5) == GLFW_PRESS)
 		{
 			std::cout << "reload shaders" << std::endl;
@@ -79,7 +78,6 @@ void Application::run()
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
 		m_solver.solve(sparse_features, m_face, raw_frame, m_projection);
 		//m_solver.solve_CPU(sparse_features, m_face, m_projection);
-
 
 		m_face.computeFace();
 		m_face.updateVertexBuffer();
