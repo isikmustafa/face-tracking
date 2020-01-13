@@ -45,14 +45,18 @@ __global__ void cuComputeJacobianSparseFeatures(
 	const int nPixels = imageWidth * imageHeight;
 	const int n = nFeatures + nPixels + nFaceCoeffs;
 
+	Eigen::Map<Eigen::MatrixXf> jacobian(p_jacobian, nResiduals, nUnknowns);
+	Eigen::Map<Eigen::VectorXf> residuals(p_residuals, nResiduals);
+
+	Eigen::Map<Eigen::MatrixXf> shape_basis(p_shape_basis, nVerticesTimes3, nShapeCoeffsTotal);
+	Eigen::Map<Eigen::MatrixXf> expression_basis(p_expression_basis, nVerticesTimes3, nExpressionCoeffsTotal);
+	Eigen::Map<Eigen::MatrixXf> albedo_basis(p_albedo_basis, nVerticesTimes3, nAlbedoCoeffsTotal);
+
+	int offset_rows = nFeatures * 2 + nPixels * 3;
+	int offset_cols = 7;
+
 	for (int i = index; i < n; i += stride)
 	{
-		Eigen::Map<Eigen::MatrixXf> jacobian(p_jacobian, nResiduals, nUnknowns);
-		Eigen::Map<Eigen::VectorXf> residuals(p_residuals, nResiduals);
-
-		int offset_rows = nFeatures * 2 + nPixels * 3;
-		int offset_cols = 7;
-
 		// Regularization terms
 
 		if (i >= nResiduals - nFaceCoeffs)
@@ -78,10 +82,6 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 			return;
 		}
-
-		Eigen::Map<Eigen::MatrixXf> shape_basis(p_shape_basis, nVerticesTimes3, nShapeCoeffsTotal);
-		Eigen::Map<Eigen::MatrixXf> expression_basis(p_expression_basis, nVerticesTimes3, nExpressionCoeffsTotal);
-		Eigen::Map<Eigen::MatrixXf> albedo_basis(p_albedo_basis, nVerticesTimes3, nAlbedoCoeffsTotal);
 
 		// Dense terms
 
@@ -121,6 +121,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 			jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = A + B + C;
 
 			// Shape and expression
+
 			jacobian.block(i * 3, 7, 3, nShapeCoeffs) = Eigen::MatrixXf::Zero(3, nShapeCoeffs);
 			jacobian.block(i * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) = Eigen::MatrixXf::Zero(3, nExpressionCoeffs);
 
