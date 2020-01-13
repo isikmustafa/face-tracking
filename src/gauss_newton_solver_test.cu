@@ -65,8 +65,8 @@ __global__ void textureBarycentricsVertexIdsTestKernel(cudaTextureObject_t textu
 
 void GaussNewtonSolver::debugFrameBufferTextures(Face& face, uchar* frame, const std::string& rgb_filepath, const std::string& deferred_filepath)
 {
-	int img_width = face.m_graphics_settings.screen_width;
-	int img_height = face.m_graphics_settings.screen_height;
+	int img_width = face.m_graphics_settings.texture_width;
+	int img_height = face.m_graphics_settings.texture_height;
 	util::DeviceArray<float> temp_memory(img_width * img_height * 3);
 
 	dim3 threads(16, 16);

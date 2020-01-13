@@ -17,6 +17,7 @@ struct SolverParameters
 	int num_shape_coefficients = 30;
 	int num_albedo_coefficients = 30;
 	int num_expression_coefficients = 76;
+	int num_sh_coefficients = 0; 
 
 	const float kNearZero = 1.0e-8;		// interpretation of "zero"
 	const float kTolerance = 1.0e-2;	//convergence if rtr < TOLERANCE
@@ -62,9 +63,9 @@ private:
 	void computeJacobianSparseFeatures(
 		//shared memory
 		int nFeatures, const int imageWidth, const int imageHeight,
-		int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs,
+		int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs, int nShCoeffs,
 		int nUnknowns, int nResiduals,
-		int nVerticesTimes3, int nShapeCoeffsTotal, int nExpressionCoeffsTotal, int nAlbedoCoeffsTotal,
+		int nVerticesTimes3, int nShapeCoeffsTotal, int nExpressionCoeffsTotal, int nAlbedoCoeffsTotal, int nShCoeffsTotal,
 		float sparseWeight, float denseWeight, float regularizationWeight,
 
 		uchar* image,
@@ -81,6 +82,7 @@ private:
 		float* p_coefficients_shape, 
 		float* p_coefficients_expression,
 		float* p_coefficients_albedo,
+		float* p_coefficients_sh, 
 
 		//device memory output
 		float* p_jacobian, float* p_residuals) const;

@@ -9,10 +9,12 @@
 #include "opencv2/highgui/highgui.hpp"
 #include <chrono>
 
-//constexpr int kScreenWidth = 1200;
-//constexpr int kScreenHeight = 900;
-constexpr int kScreenWidth = 640;
-constexpr int kScreenHeight = 360;
+constexpr int kScreenWidth = 1200;
+constexpr int kScreenHeight = 900;
+//constexpr int kScreenWidth = 640;
+//constexpr int kScreenHeight = 360;
+constexpr int kTextureWidth = 640;
+constexpr int kTextureHeight = 360;
 constexpr glm::ivec2 kGuiPosition(0, 0);
 constexpr glm::ivec2 kGuiSize(240, kScreenHeight);
 
@@ -159,6 +161,8 @@ void Application::initMenuWidgets()
 
 		ImGui::SliderInt("Shape Parameters", &solver_parameters.num_shape_coefficients, 0, 160);
 		ImGui::SliderInt("Albedo Parameters", &solver_parameters.num_albedo_coefficients, 0, 160);
+		ImGui::SliderInt("SH Parameters", &solver_parameters.num_sh_coefficients, 0, 9);
+
 		ImGui::SliderInt("Expression Parameters", &solver_parameters.num_expression_coefficients, 0, 76);
 	};
 	m_menu.attach(std::move(opt_parameters));
@@ -187,7 +191,7 @@ void Application::initGraphics()
 	// RGB render texture
 	glGenTextures(1, &m_rt_rgb);
 	glBindTexture(GL_TEXTURE_2D, m_rt_rgb);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kScreenWidth, kScreenHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kTextureWidth, kTextureHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_rt_rgb, 0);
@@ -196,7 +200,7 @@ void Application::initGraphics()
 	// barycentrics render texture
 	glGenTextures(1, &m_rt_barycentrics);
 	glBindTexture(GL_TEXTURE_2D, m_rt_barycentrics);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, kScreenWidth, kScreenHeight, 0, GL_RGBA, GL_FLOAT, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, kTextureWidth, kTextureHeight, 0, GL_RGBA, GL_FLOAT, 0);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, m_rt_barycentrics, 0);
@@ -205,7 +209,7 @@ void Application::initGraphics()
 	// vertex ID render texture
 	glGenTextures(1, &m_rt_vertex_ids);
 	glBindTexture(GL_TEXTURE_2D, m_rt_vertex_ids);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32I, kScreenWidth, kScreenHeight, 0, GL_RGBA_INTEGER, GL_INT, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32I, kTextureWidth, kTextureHeight, 0, GL_RGBA_INTEGER, GL_INT, 0);
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, m_rt_vertex_ids, 0);
 	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_rt_vertex_ids_cuda_resource, m_rt_vertex_ids, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
 
@@ -213,7 +217,7 @@ void Application::initGraphics()
 	glDrawBuffers(3, draw_buffers); // "3" is the size of draw_buffers
 	glGenRenderbuffers(1, &m_depth_buffer);
 	glBindRenderbuffer(GL_RENDERBUFFER, m_depth_buffer);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kScreenWidth, kScreenHeight);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kTextureWidth, kTextureHeight);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depth_buffer);
 
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
@@ -261,6 +265,8 @@ void Application::reloadShaders()
 	graphics_settings.shader = &m_face_shader;
 	graphics_settings.screen_width = kScreenWidth;
 	graphics_settings.screen_height = kScreenHeight;
+	graphics_settings.texture_width = kTextureWidth; 
+	graphics_settings.texture_height = kTextureHeight; 
 	graphics_settings.mapped_to_cuda = false;
 }
 

@@ -1,6 +1,5 @@
 #pragma once 
 
-
 #include "gauss_newton_solver.h"
 #include "util.h"
 #include "device_util.h"
@@ -8,15 +7,18 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 
+//#define TEST_TEXTURE
+
 __global__ void cuComputeJacobianSparseFeatures(
 	//shared memory
 	const int nFeatures, const int imageWidth, const int imageHeight,
-	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
+	const int nFaceCoeffs, const int nPixels, const int n, 
+	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs, const int nShCoeffs,
 	const int nUnknowns, const int nResiduals,
-	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
+	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal, const int nShCoeffsTotal,
 	const float wsparse, const float wdense, const float sqrt_wreg,
 
-	uchar* image, float* debug_frame, 
+	uchar* image, float* debug_frame,
 
 	glm::mat4 face_pose, glm::mat3 drx, glm::mat3 dry, glm::mat3 drz, glm::mat4 projection, Eigen::Matrix3f jacobian_local,
 
@@ -30,6 +32,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 	float* p_coefficients_shape,
 	float* p_coefficients_expression,
 	float* p_coefficients_albedo,
+	float* p_coefficients_sh, 
 
 	cudaTextureObject_t rgb,
 	cudaTextureObject_t barycentrics,
@@ -40,10 +43,6 @@ __global__ void cuComputeJacobianSparseFeatures(
 {
 	int index = util::getThreadIndex1D();
 	int stride = blockDim.x * gridDim.x;
-
-	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
-	const int nPixels = imageWidth * imageHeight;
-	const int n = nFeatures + nPixels + nFaceCoeffs;
 
 	Eigen::Map<Eigen::MatrixXf> jacobian(p_jacobian, nResiduals, nUnknowns);
 	Eigen::Map<Eigen::VectorXf> residuals(p_residuals, nResiduals);
@@ -95,22 +94,22 @@ __global__ void cuComputeJacobianSparseFeatures(
 			int ygl = imageHeight - 1 - yp; // "height - 1 - index.y" OpenGL uses left-bottom corner as texture origin.
 			float4 face_rgb_sampled = tex2D<float4>(rgb, xp, ygl);
 
-			////test
+#ifdef TEST_TEXTURE
 
-			//if (face_rgb_sampled.w > 0)
-			//{
-			//	debug_frame[idx] = face_rgb_sampled.x;
-			//	debug_frame[idx + 1] = face_rgb_sampled.y;
-			//	debug_frame[idx + 2] = face_rgb_sampled.z;
-			//}
-			//else
-			//{
-			//	debug_frame[idx] = image[idx] / 255.0;
-			//	debug_frame[idx + 1] = image[idx + 1] / 255.0;
-			//	debug_frame[idx + 2] = image[idx + 2] / 255.0;
-			//}
+			if (face_rgb_sampled.w > 0)
+			{
+				debug_frame[idx] = face_rgb_sampled.x;
+				debug_frame[idx + 1] = face_rgb_sampled.y;
+				debug_frame[idx + 2] = face_rgb_sampled.z;
+			}
+			else
+			{
+				debug_frame[idx] = image[idx] / 255.0;
+				debug_frame[idx + 1] = image[idx + 1] / 255.0;
+				debug_frame[idx + 2] = image[idx + 2] / 255.0;
+			}
+#endif // TEST_TEXTURE
 
-			////end test
 
 
 			if (face_rgb_sampled.w < 1.0f) return; // pixel is not covered by face
@@ -136,6 +135,10 @@ __global__ void cuComputeJacobianSparseFeatures(
 			auto C = light * bary_sampled.z * albedo_basis.block(3 * verts_s.z, 0, 3, nAlbedoCoeffs);
 
 			jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = (A + B + C) * wdense;
+
+			//SH 
+
+
 
 			// Shape and expression
 
@@ -223,9 +226,9 @@ __global__ void cuComputeJacobianSparseFeatures(
 void GaussNewtonSolver::computeJacobianSparseFeatures(
 	//shared memory
 	const int nFeatures, const int imageWidth, const int imageHeight,
-	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
+	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs, const int nShCoeffs,
 	const int nUnknowns, const int nResiduals,
-	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
+	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal, const int nShcoeffsTotal,
 	float sparseWeight, float denseWeight, float regularizationWeight,
 
 	uchar* image,
@@ -242,13 +245,15 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 	float* p_coefficients_shape,
 	float* p_coefficients_expression,
 	float* p_coefficients_albedo,
+	float* p_coefficients_sh, 
 
 	//device memory output
 	float* p_jacobian, float* p_residuals
 ) const
 {
 	const int nPixels = imageWidth * imageHeight;
-	const int n = nFeatures + nPixels + m_params.num_shape_coefficients + m_params.num_expression_coefficients + m_params.num_albedo_coefficients;
+	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
+	const int n = nFeatures + nPixels + nFaceCoeffs; 
 
 	const int threads = 256;
 	const int block = (n + threads - 1) / threads;
@@ -258,9 +263,10 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 	cuComputeJacobianSparseFeatures << <block, threads >> > (
 		//shared memory
 		nFeatures, imageWidth, imageHeight,
-		nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs,
+		nFaceCoeffs, nPixels, n, 
+		nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nShCoeffs,
 		nUnknowns, nResiduals,
-		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal, nAlbedoCoeffsTotal,
+		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal, nAlbedoCoeffsTotal, nShcoeffsTotal,
 		sparseWeight / nFeatures, denseWeight, glm::sqrt(regularizationWeight),
 
 		image, temp_memory.getPtr(),
@@ -277,6 +283,7 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 		p_coefficients_shape,
 		p_coefficients_expression,
 		p_coefficients_albedo,
+		p_coefficients_sh, 
 
 		m_texture_rgb,
 		m_texture_barycentrics,
@@ -287,21 +294,25 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 
 	cudaDeviceSynchronize();
 
-	//std::vector<float> temp_memory_host(nPixels * 3);
-	//util::copy(temp_memory_host, temp_memory, temp_memory.getSize());
+#ifdef TEST_TEXTURE
+	std::vector<float> temp_memory_host(nPixels * 3);
+	util::copy(temp_memory_host, temp_memory, temp_memory.getSize());
 
-	//cv::Mat image_debug(cv::Size(imageWidth, imageHeight), CV_8UC3);
-	//for (int y = 0; y < image_debug.rows; y++)
-	//{
-	//	for (int x = 0; x < image_debug.cols; x++)
-	//	{
-	//		auto idx = (x + y * imageWidth) * 3;
+	cv::Mat image_debug(cv::Size(imageWidth, imageHeight), CV_8UC3);
+	for (int y = 0; y < image_debug.rows; y++)
+	{
+		for (int x = 0; x < image_debug.cols; x++)
+		{
+			auto idx = (x + y * imageWidth) * 3;
 
-	//		// OpenCV expects it to be an BGRA image.
-	//		image_debug.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(temp_memory_host[idx + 2], temp_memory_host[idx + 1], temp_memory_host[idx]));
-	//	}
-	//}
-	//cv::imwrite("../../dense_test.png", image_debug);
+			// OpenCV expects it to be an BGRA image.
+			image_debug.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(temp_memory_host[idx + 2], temp_memory_host[idx + 1], temp_memory_host[idx]));
+		}
+	}
+	cv::imwrite("../../dense_test.png", image_debug);
+#endif // TEST_TEXTURE
+
+
 
 
 

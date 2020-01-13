@@ -184,13 +184,15 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	{
 		return;
 	}
-
-	const int nPixels = face.m_graphics_settings.screen_width * face.m_graphics_settings.screen_height;
+	const int frameWidth = face.m_graphics_settings.texture_width; 
+	const int frameHeight = face.m_graphics_settings.texture_height;
+	const int nPixels = frameWidth * frameHeight;
 	const int nFeatures = sparse_features.size();
 	const int nShapeCoeffs = m_params.num_shape_coefficients;
 	const int nExpressionCoeffs = m_params.num_expression_coefficients;
 	const int nAlbedoCoeffs = m_params.num_albedo_coefficients;
-	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
+	const int nSHCoeffs = m_params.num_sh_coefficients;
+	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs + nSHCoeffs;
 	const int nResiduals = 2 * nFeatures + 3 * nPixels + nFaceCoeffs; //nFaceCoeffs -> regularizer
 	const int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics. Plus nFaceCoeffs for face parameters.
 
@@ -211,7 +213,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	auto key_pts_gpu = util::DeviceArray<glm::vec2>(sparse_features);
 
 	cv::Mat processed_frame;
-	cv::resize(frame, processed_frame, cv::Size(face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height));
+	cv::resize(frame, processed_frame, cv::Size(frameWidth, frameHeight));
 	cv::cvtColor(processed_frame, processed_frame, cv::COLOR_BGR2RGB);
 	util::DeviceArray<uchar> frame_gpu = util::DeviceArray<uchar>(3 * nPixels);
 	util::copy(frame_gpu, processed_frame.data, 3 * nPixels);
@@ -238,17 +240,18 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		face.computeRotationDerivatives(drx, dry, drz);
 
 		mapRenderTargets(face);
-		// debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
-
+		//debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
+		auto sh_coeffs_gpu = util::DeviceArray<float>(face.m_sh_coefficients); 
 		//CUDA
 		computeJacobianSparseFeatures(
 			//shared memory
-			nFeatures, face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height,
-			nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nUnknowns, nResiduals,
+			nFeatures, frameWidth, frameHeight,
+			nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nSHCoeffs, nUnknowns, nResiduals,
 			face.m_number_of_vertices * 3,
 			face.m_shape_coefficients.size(),
 			face.m_expression_coefficients.size(),
 			face.m_albedo_coefficients.size(),
+			face.m_sh_coefficients.size(),
 			wSparse, wDense, wReg,
 
 			frame_gpu.getPtr(),
@@ -265,7 +268,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			face.m_shape_coefficients_gpu.getPtr(),
 			face.m_expression_coefficients_gpu.getPtr(),
 			face.m_albedo_coefficients_gpu.getPtr(),
-
+			sh_coeffs_gpu.getPtr(), 
 			//device memory output
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
 		);
