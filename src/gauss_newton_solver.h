@@ -7,22 +7,26 @@
 //Default
 struct SolverParameters
 {
+	float sparse_weight_exponent = 2.0f;
+	float dense_weight_exponent = -1.7f;
 	float regularisation_weight_exponent = -4.6f;
 
 	int num_gn_iterations = 5;
-	int num_pcg_iterations = 15;
+	int num_pcg_iterations = 10;
 
 	int num_shape_coefficients = 30;
 	int num_albedo_coefficients = 30;
 	int num_expression_coefficients = 76;
 
 	const float kNearZero = 1.0e-8;		// interpretation of "zero"
-	const float kTolerance = 1.0e-3;	//convergence if rtr < TOLERANCE
+	const float kTolerance = 1.0e-2;	//convergence if rtr < TOLERANCE
 };
 
 ////Debug
 //struct SolverParameters
 //{
+//	float sparse_weight_exponent = 0.0f;
+//	float dense_weight_exponent = -2.0f;
 //	float regularisation_weight_exponent = -3.0f; 
 //
 //	int num_gn_iterations = 1; 
@@ -61,7 +65,7 @@ private:
 		int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs,
 		int nUnknowns, int nResiduals,
 		int nVerticesTimes3, int nShapeCoeffsTotal, int nExpressionCoeffsTotal, int nAlbedoCoeffsTotal,
-		float regularizationWeight,
+		float sparseWeight, float denseWeight, float regularizationWeight,
 
 		uchar* image,
 

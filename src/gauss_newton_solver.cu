@@ -14,7 +14,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
 	const int nUnknowns, const int nResiduals,
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
-	const float sqrt_wreg,
+	const float wsparse, const float wdense, const float sqrt_wreg,
 
 	uchar* image,
 
@@ -107,18 +107,17 @@ __global__ void cuComputeJacobianSparseFeatures(
 			frame_rgb.z() = image[idx + 2] / 255.0f;
 
 			Eigen::Vector3f residual = face_rgb - frame_rgb;
-
-			residuals.block(i * 3, 0, 3, 1) = residual;
+			residuals.block(i * 3, 0, 3, 1) = residual * wdense;
 
 			// Albedo
 
-			auto light = bary_sampled.w;
+			auto& light = bary_sampled.w;
 
 			auto A = light * bary_sampled.x * albedo_basis.block(3 * verts_s.x, 0, 3, nAlbedoCoeffs);
 			auto B = light * bary_sampled.y * albedo_basis.block(3 * verts_s.y, 0, 3, nAlbedoCoeffs);
 			auto C = light * bary_sampled.z * albedo_basis.block(3 * verts_s.z, 0, 3, nAlbedoCoeffs);
 
-			jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = A + B + C;
+			jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = (A + B + C) * wdense;
 
 			// Shape and expression
 
@@ -153,8 +152,8 @@ __global__ void cuComputeJacobianSparseFeatures(
 		//Residual
 		auto residual = uv - sparse_features[i];
 
-		residuals(i * 2) = residual.x;
-		residuals(i * 2 + 1) = residual.y;
+		residuals(i * 2) = residual.x * wsparse;
+		residuals(i * 2 + 1) = residual.y * wsparse;
 
 		//Jacobian for homogenization (AKA division by w)
 		auto one_over_wp = 1.0f / proj_coord.w;
@@ -169,7 +168,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 		//Jacobian for intrinsics
 		jacobian_intrinsics(0, 0) = world_coord.x;
-		jacobian.block<2, 1>(i * 2, 0) = jacobian_proj * jacobian_intrinsics;
+		jacobian.block<2, 1>(i * 2, 0) = jacobian_proj * jacobian_intrinsics * wsparse;
 
 		//Derivative of world coordinates with respect to rotation coefficients
 		auto dx = drx * local_coord;
@@ -186,7 +185,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 		jacobian_pose(1, 2) = dz[1];
 		jacobian_pose(2, 2) = dz[2];
 
-		auto jacobian_proj_world = jacobian_proj * jacobian_world;
+		auto jacobian_proj_world = jacobian_proj * jacobian_world * wsparse;
 		jacobian.block<2, 6>(i * 2, 1) = jacobian_proj_world * jacobian_pose;
 
 		//Derivative of world coordinates with respect to local coordinates.
@@ -209,7 +208,7 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
 	const int nUnknowns, const int nResiduals,
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
-	const float regularizationWeight,
+	float sparseWeight, float denseWeight, float regularizationWeight,
 
 	uchar* image,
 
@@ -235,14 +234,13 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 
 	const int threads = 256;
 	const int block = (n + threads - 1) / threads;
-
 	cuComputeJacobianSparseFeatures << <block, threads >> > (
 		//shared memory
 		nFeatures, imageWidth, imageHeight,
 		nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs,
 		nUnknowns, nResiduals,
 		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal, nAlbedoCoeffsTotal,
-		glm::sqrt(regularizationWeight),
+		sparseWeight / nFeatures, denseWeight, glm::sqrt(regularizationWeight),
 
 		image,
 

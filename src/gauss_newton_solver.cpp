@@ -194,6 +194,8 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	const int nResiduals = 2 * nFeatures + 3 * nPixels + nFaceCoeffs; //nFaceCoeffs -> regularizer
 	const int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics. Plus nFaceCoeffs for face parameters.
 
+	const float wSparse = std::powf(10, m_params.sparse_weight_exponent);
+	const float wDense = std::powf(10, m_params.dense_weight_exponent);
 	const float wReg = std::powf(10, m_params.regularisation_weight_exponent);
 
 	const auto& prior_local_ids = PriorSparseFeatures::get().getPriorIds();
@@ -247,7 +249,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			face.m_shape_coefficients.size(),
 			face.m_expression_coefficients.size(),
 			face.m_albedo_coefficients.size(),
-			wReg,
+			wSparse, wDense, wReg,
 
 			frame_gpu.getPtr(),
 
