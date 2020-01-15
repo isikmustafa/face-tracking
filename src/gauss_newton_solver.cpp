@@ -9,6 +9,7 @@
 
 GaussNewtonSolver::GaussNewtonSolver()
 	: m_face_bb(1)
+	, m_sh_coefficients(9)
 {
 	cublasCreate(&m_cublas);
 }
@@ -19,166 +20,6 @@ GaussNewtonSolver::~GaussNewtonSolver()
 	destroyTextures();
 }
 
-void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection)
-{
-	if (sparse_features.empty()) //no tracking -> cublas doesnt like a getting matrix/vector of size 0
-	{
-		return;
-	}
-
-	const int nFeatures = sparse_features.size();
-	const int nShapeCoeffs = m_params.num_shape_coefficients;
-	const int nExpressionCoeffs = m_params.num_expression_coefficients;
-	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs;
-	const int nResiduals = 2 * nFeatures + nFaceCoeffs; //nFaceCoeffs -> regularizer
-	const int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics. Plus nFaceCoeffs for face parameters.
-
-	const float wReg = std::powf(10, m_params.regularisation_weight_exponent);
-
-	const auto& prior_local_ids = PriorSparseFeatures::get().getPriorIds();
-	auto& rotation_coefficients = face.getRotationCoefficients();
-	auto& translation_coefficients = face.getTranslationCoefficients();
-
-	Eigen::VectorXf residuals(nResiduals);
-	Eigen::MatrixXf jacobian(nResiduals, nUnknowns);
-	residuals.setZero();
-	jacobian.setZero();
-
-	auto jacobian_gpu = util::DeviceArray<float>(nUnknowns * nResiduals);
-	auto residuals_gpu = util::DeviceArray<float>(nResiduals);
-	auto result_gpu = util::DeviceArray<float>(nUnknowns);
-	std::vector<float> result(nUnknowns);
-
-	Eigen::Map<Eigen::MatrixXf> shape_basis(face.m_shape_basis.data(), face.m_number_of_vertices * 3, face.m_shape_coefficients.size());
-	Eigen::Map<Eigen::MatrixXf> expression_basis(face.m_expression_basis.data(), face.m_number_of_vertices * 3, face.m_expression_coefficients.size());
-
-	//Some parts of jacobians are constants. That's why they are intialized here only once.
-	//Do not touch them inside the for loops.
-	Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
-
-	Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
-	jacobian_world(1, 1) = projection[1][1];
-	jacobian_world(2, 2) = -1.0f;
-
-	Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
-
-	Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
-	jacobian_pose(0, 3) = 1.0f;
-	jacobian_pose(1, 4) = 1.0f;
-	jacobian_pose(2, 5) = 1.0f;
-
-	Eigen::Matrix<float, 3, 3> jacobian_local = Eigen::MatrixXf::Zero(3, 3);
-
-	std::vector<glm::vec3> current_face(face.m_number_of_vertices);
-	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
-	{
-		face.computeFace();
-		util::copy(current_face, face.m_current_face_gpu, face.m_number_of_vertices);
-
-		auto face_pose = face.computeModelMatrix();
-		jacobian_local <<
-			face_pose[0][0], face_pose[1][0], face_pose[2][0],
-			face_pose[0][1], face_pose[1][1], face_pose[2][1],
-			face_pose[0][2], face_pose[1][2], face_pose[2][2];
-
-		glm::mat3 drx, dry, drz;
-		face.computeRotationDerivatives(drx, dry, drz);
-
-		//Construct residuals and jacobian for sparse features
-		for (int i = 0; i < nFeatures; ++i)
-		{
-			auto vertex_id = prior_local_ids[i];
-			auto local_coord = current_face[vertex_id];
-
-			auto world_coord = face_pose * glm::vec4(local_coord, 1.0f);
-			auto proj_coord = projection * world_coord;
-			auto uv = glm::vec2(proj_coord.x, proj_coord.y) / proj_coord.w;
-
-			//Residual
-			auto residual = uv - sparse_features[i];
-
-			residuals(i * 2) = residual.x;
-			residuals(i * 2 + 1) = residual.y;
-
-			//Jacobian for homogenization (AKA division by w)
-			auto one_over_wp = 1.0f / proj_coord.w;
-			jacobian_proj(0, 0) = one_over_wp;
-			jacobian_proj(0, 2) = -proj_coord.x * one_over_wp * one_over_wp;
-
-			jacobian_proj(1, 1) = one_over_wp;
-			jacobian_proj(1, 2) = -proj_coord.y * one_over_wp * one_over_wp;
-
-			//Jacobian for projection
-			jacobian_world(0, 0) = projection[0][0];
-
-			//Jacobian for intrinsics
-			jacobian_intrinsics(0, 0) = world_coord.x;
-			jacobian.block<2, 1>(i * 2, 0) = jacobian_proj * jacobian_intrinsics;
-
-			//Derivative of world coordinates with respect to rotation coefficients
-			auto dx = drx * local_coord;
-			auto dy = dry * local_coord;
-			auto dz = drz * local_coord;
-
-			jacobian_pose(0, 0) = dx[0];
-			jacobian_pose(1, 0) = dx[1];
-			jacobian_pose(2, 0) = dx[2];
-			jacobian_pose(0, 1) = dy[0];
-			jacobian_pose(1, 1) = dy[1];
-			jacobian_pose(2, 1) = dy[2];
-			jacobian_pose(0, 2) = dz[0];
-			jacobian_pose(1, 2) = dz[1];
-			jacobian_pose(2, 2) = dz[2];
-
-			auto jacobian_proj_world = jacobian_proj * jacobian_world;
-			jacobian.block<2, 6>(i * 2, 1) = jacobian_proj_world * jacobian_pose;
-
-			//Derivative of world coordinates with respect to local coordinates.
-			//This is basically the rotation matrix.
-			auto jacobian_proj_world_local = jacobian_proj_world * jacobian_local;
-
-			//Derivative of local coordinates with respect to shape and expression parameters
-			//This is basically the corresponding (to unique vertices we have chosen) rows of basis matrices.
-			auto jacobian_shape = jacobian_proj_world_local * shape_basis.block(3 * vertex_id, 0, 3, nShapeCoeffs);
-			jacobian.block(i * 2, 7, 2, nShapeCoeffs) = jacobian_shape;
-
-			auto jacobian_expression = jacobian_proj_world_local * expression_basis.block(3 * vertex_id, 0, 3, nExpressionCoeffs);
-			jacobian.block(i * 2, 7 + nShapeCoeffs, 2, nExpressionCoeffs) = jacobian_expression;
-		}
-
-		//Regularizer terms.
-		const int offsetColsShape = 7;
-		const int offsetRowsShape = 2 * nFeatures;
-		const int offsetColsExpression = offsetColsShape + nShapeCoeffs;
-		const int offsetRowsExpression = offsetRowsShape + nShapeCoeffs;
-
-		for (int i = 0; i < nShapeCoeffs; ++i)
-		{
-			jacobian(offsetRowsShape + i, offsetColsShape + i) = glm::sqrt(wReg);
-			residuals(offsetRowsShape + i) = face.m_shape_coefficients[i] * glm::sqrt(wReg);
-		}
-
-		for (int i = 0; i < nExpressionCoeffs; ++i)
-		{
-			jacobian(offsetRowsExpression + i, offsetColsExpression + i) = glm::sqrt(wReg);
-			residuals(offsetRowsExpression + i) = face.m_expression_coefficients[i] * glm::sqrt(wReg);
-		}
-
-		//Apply step and update poses GPU
-		util::copy(jacobian_gpu, jacobian.data(), nUnknowns * nResiduals);
-		util::copy(residuals_gpu, residuals.data(), nResiduals);
-
-		solveUpdateCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
-		util::copy(result, result_gpu, nUnknowns);
-
-		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs, 0);
-
-		/*std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
-		std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
-		std::cout << "Iteration: " << iteration << " , Loss: " << (residuals.array() * residuals.array()).sum() << std::endl;*/
-	}
-}
-
 void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Face& face, cv::Mat& frame, glm::mat4& projection)
 {
 	if (sparse_features.empty()) //no tracking -> cublas doesnt like a getting matrix/vector of size 0
@@ -186,25 +27,22 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		return;
 	}
 
-	const int frameWidth = face.m_graphics_settings.texture_width; 
+	const int frameWidth = face.m_graphics_settings.texture_width;
 	const int frameHeight = face.m_graphics_settings.texture_height;
 	const int nPixels = frameWidth * frameHeight;
 	const int nFeatures = sparse_features.size();
 	const int nShapeCoeffs = m_params.num_shape_coefficients;
 	const int nExpressionCoeffs = m_params.num_expression_coefficients;
 	const int nAlbedoCoeffs = m_params.num_albedo_coefficients;
-	const int nSHCoeffs = m_params.num_sh_coefficients;
-	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs + nSHCoeffs;
+	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
 	const int nResiduals = 2 * nFeatures + 3 * nPixels + nFaceCoeffs; //nFaceCoeffs -> regularizer
-	const int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics. Plus nFaceCoeffs for face parameters.
+	const int nUnknowns = 7 + nFaceCoeffs + 9; //3+3+1 = 7 DoF for rotation, translation and intrinsics. Plus nFaceCoeffs for face parameters and 9 for lighting.
 
 	const float wSparse = std::powf(10, m_params.sparse_weight_exponent);
 	const float wDense = std::powf(10, m_params.dense_weight_exponent);
 	const float wReg = std::powf(10, m_params.regularisation_weight_exponent);
 
 	const auto& prior_local_ids = PriorSparseFeatures::get().getPriorIds();
-	auto& rotation_coefficients = face.getRotationCoefficients();
-	auto& translation_coefficients = face.getTranslationCoefficients();
 
 	//TODO: Allocate all of the objects below once. So, move them out of here.
 	auto jacobian_gpu = util::DeviceArray<float>(nResiduals * nUnknowns);
@@ -243,19 +81,19 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		face.computeRotationDerivatives(drx, dry, drz);
 
 		mapRenderTargets(face);
-		FaceBoundingBox face_bb = computeFaceBoundingBox(face.m_graphics_settings.texture_width, face.m_graphics_settings.texture_height); 
+		FaceBoundingBox face_bb = computeFaceBoundingBox(face.m_graphics_settings.texture_width, face.m_graphics_settings.texture_height);
 
-		int current_residuals = 2 * nFeatures + nFaceCoeffs + 3 * face_bb.width * face_bb.height; 
-		//int current_residuals = nResiduals;
+		int current_residuals = 2 * nFeatures + nFaceCoeffs + 3 * face_bb.width * face_bb.height;
 
 		//debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
-		auto sh_coeffs_gpu = util::DeviceArray<float>(face.m_sh_coefficients); 
+		util::copy(m_sh_coefficients, face.m_sh_coefficients, 9);
+
 		//CUDA
 		computeJacobian(
 			//shared memory
 			face_bb,
 			nFeatures, frameWidth, frameHeight,
-			nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nSHCoeffs, nUnknowns, current_residuals,
+			nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nUnknowns, current_residuals,
 			face.m_number_of_vertices * 3,
 			face.m_shape_coefficients.size(),
 			face.m_expression_coefficients.size(),
@@ -277,7 +115,8 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			face.m_shape_coefficients_gpu.getPtr(),
 			face.m_expression_coefficients_gpu.getPtr(),
 			face.m_albedo_coefficients_gpu.getPtr(),
-			sh_coeffs_gpu.getPtr(), 
+			m_sh_coefficients.getPtr(),
+
 			//device memory output
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
 		);
@@ -288,7 +127,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		solveUpdateCG(m_cublas, nUnknowns, current_residuals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
 		util::copy(result, result_gpu, nUnknowns);
 
-		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);
+		updateParameters(result, projection, face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);
 	}
 }
 
@@ -452,39 +291,45 @@ void GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int nU
 	//std::cout << "CG iters: " << i << std::endl;
 }
 
-void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::mat4& projection,
-	glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face,
+void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::mat4& projection, Face& face,
 	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs)
 {
 	projection[0][0] += result[0];
 
-	rotation_coefficients.x += result[1];
-	rotation_coefficients.y += result[2];
-	rotation_coefficients.z += result[3];
+	face.m_rotation_coefficients.x += result[1];
+	face.m_rotation_coefficients.y += result[2];
+	face.m_rotation_coefficients.z += result[3];
 
-	translation_coefficients.x += result[4];
-	translation_coefficients.y += result[5];
-	translation_coefficients.z += result[6];
+	face.m_translation_coefficients.x += result[4];
+	face.m_translation_coefficients.y += result[5];
+	face.m_translation_coefficients.z += result[6];
 
-#pragma omp parallel for
-	for (int i = 0; i < nShapeCoeffs; ++i)
+#pragma parallel
 	{
-		auto c = face.m_shape_coefficients[i] + result[7 + i];
-		face.m_shape_coefficients[i] = c;
+
+#pragma omp for
+		for (int i = 0; i < nShapeCoeffs; ++i)
+		{
+			face.m_shape_coefficients[i] += result[7 + i];
+		}
+
+#pragma omp for
+		for (int i = 0; i < nExpressionCoeffs; ++i)
+		{
+			auto c = face.m_expression_coefficients[i] + result[7 + nShapeCoeffs + i];
+			face.m_expression_coefficients[i] = glm::clamp(c, 0.0f, 1.0f);
+		}
+
+#pragma omp for
+		for (int i = 0; i < nAlbedoCoeffs; ++i)
+		{
+			face.m_albedo_coefficients[i] += result[7 + nShapeCoeffs + nExpressionCoeffs + i];
+		}
 	}
 
-#pragma omp parallel for
-	for (int i = 0; i < nExpressionCoeffs; ++i)
+	for (int i = 0; i < 9; ++i)
 	{
-		auto c = face.m_expression_coefficients[i] + result[7 + nShapeCoeffs + i];
-		face.m_expression_coefficients[i] = glm::clamp(c, 0.0f, 1.0f);
-	}
-
-#pragma omp parallel for
-	for (int i = 0; i < nAlbedoCoeffs; ++i)
-	{
-		auto c = face.m_albedo_coefficients[i] + result[7 + nShapeCoeffs + nExpressionCoeffs + i];
-		face.m_albedo_coefficients[i] = c;
+		face.m_sh_coefficients[i] += result[7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs + i];
 	}
 }
 

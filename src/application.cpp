@@ -75,7 +75,6 @@ void Application::run()
 
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
 		m_solver.solve(sparse_features, m_face, raw_frame, m_projection);
-		//m_solver.solve_CPU(sparse_features, m_face, m_projection);
 
 		m_face.computeFace();
 		m_face.updateVertexBuffer();
@@ -171,9 +170,8 @@ void Application::initMenuWidgets()
 
 		ImGui::SliderInt("Shape Parameters", &solver_parameters.num_shape_coefficients, 0, 160);
 		ImGui::SliderInt("Albedo Parameters", &solver_parameters.num_albedo_coefficients, 0, 160);
-		ImGui::SliderInt("SH Parameters", &solver_parameters.num_sh_coefficients, 0, 9);
-
 		ImGui::SliderInt("Expression Parameters", &solver_parameters.num_expression_coefficients, 0, 76);
+
 		ImGui::End();
 	};
 	m_menu.attach(std::move(opt_parameters));

@@ -18,7 +18,6 @@ struct SolverParameters
 	int num_shape_coefficients = 30;
 	int num_albedo_coefficients = 30;
 	int num_expression_coefficients = 76;
-	int num_sh_coefficients = 0; 
 
 	const float kNearZero = 1.0e-8;		// interpretation of "zero"
 	const float kTolerance = 1.0e-2;	//convergence if rtr < TOLERANCE
@@ -59,7 +58,6 @@ public:
 	~GaussNewtonSolver();
 
 	void solve(const std::vector<glm::vec2>& sparse_features, Face& face, cv::Mat& frame, glm::mat4& projection);
-	void solve_CPU(const std::vector<glm::vec2>& sparse_features, Face& face, glm::mat4& projection);
 
 	SolverParameters& getSolverParameters() { return m_params; }
 	const SolverParameters& getSolverParameters() const { return m_params; }
@@ -71,13 +69,14 @@ private:
 	cudaTextureObject_t m_texture_barycentrics{ 0 };
 	cudaTextureObject_t m_texture_vertex_ids{ 0 };
 	util::DeviceArray<FaceBoundingBox> m_face_bb;
+	util::DeviceArray<float> m_sh_coefficients;
 
 private:
 	void computeJacobian(
 		//shared memory
 		const FaceBoundingBox faceBB,
 		int nFeatures, const int imageWidth, const int imageHeight,
-		int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs, int nShCoeffs,
+		int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs,
 		int nUnknowns, int nResiduals,
 		int nVerticesTimes3, int nShapeCoeffsTotal, int nExpressionCoeffsTotal, int nAlbedoCoeffsTotal, int nShCoeffsTotal,
 		float sparseWeight, float denseWeight, float regularizationWeight,
@@ -114,8 +113,7 @@ private:
 	void solveUpdateLU(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
-	void updateParameters(const std::vector<float>& result, glm::mat4& projection,
-		glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face, int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs);
+	void updateParameters(const std::vector<float>& result, glm::mat4& projection, Face& face, int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs);
 
 	void mapRenderTargets(Face& face);
 	void unmapRenderTargets(Face& face);

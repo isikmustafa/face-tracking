@@ -14,7 +14,7 @@ __global__ void cuComputeJacobian(
 	FaceBoundingBox faceBB,
 	const int nFeatures, const int imageWidth, const int imageHeight,
 	const int nFaceCoeffs, const int nPixels, const int n,
-	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs, const int nShCoeffs,
+	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
 	const int nUnknowns, const int nResiduals,
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal, const int nShCoeffsTotal,
 	const float wSparse, const float wDense, const float sqrtwReg,
@@ -158,11 +158,10 @@ __global__ void cuComputeJacobian(
 			jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = (A + B + C) * wDense;
 
 			//SH 
-
+			jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs, 3, 9) = Eigen::Matrix<float, 3, 9>::Zero();
 
 
 			// Shape and expression
-
 			jacobian.block(i * 3, 7, 3, nShapeCoeffs) = Eigen::MatrixXf::Zero(3, nShapeCoeffs);
 			jacobian.block(i * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) = Eigen::MatrixXf::Zero(3, nExpressionCoeffs);
 
@@ -293,7 +292,7 @@ void GaussNewtonSolver::computeJacobian(
 	//shared memory
 	const FaceBoundingBox faceBB,
 	const int nFeatures, const int imageWidth, const int imageHeight,
-	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs, const int nShCoeffs,
+	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
 	const int nUnknowns, const int nResiduals,
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal, const int nShcoeffsTotal,
 	float sparseWeight, float denseWeight, float regularizationWeight,
@@ -334,7 +333,7 @@ void GaussNewtonSolver::computeJacobian(
 		faceBB,
 		nFeatures, imageWidth, imageHeight,
 		nFaceCoeffs, nPixels, n,
-		nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nShCoeffs,
+		nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs,
 		nUnknowns, nResiduals,
 		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal, nAlbedoCoeffsTotal, nShcoeffsTotal,
 		sparseWeight / nFeatures, denseWeight / faceBB.num_visible_pixels, glm::sqrt(regularizationWeight),
