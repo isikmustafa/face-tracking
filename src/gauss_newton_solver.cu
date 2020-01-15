@@ -105,7 +105,7 @@ __global__ void cuComputeJacobian(
 			unsigned int yp = idx / faceBB.width + faceBB.y_min;
 			/*unsigned int xp = idx % imageWidth;
 			unsigned int yp = idx / imageWidth;*/
-			int background_index = 3* (xp + yp * imageWidth);
+			int background_index = 3 * (xp + yp * imageWidth);
 			int ygl = imageHeight - 1 - yp; // "height - 1 - index.y" OpenGL uses left-bottom corner as texture origin.
 			float4 face_rgb_sampled = tex2D<float4>(rgb, xp, ygl);
 
@@ -123,7 +123,7 @@ __global__ void cuComputeJacobian(
 				debug_frame[idx + 1] = image[background_index + 1] / 255.0f;
 				debug_frame[idx + 2] = image[background_index + 2] / 255.0f;
 			}
-			if(xp == faceBB.x_min || xp == faceBB.x_max-1 || yp == faceBB.y_min || yp == faceBB.y_max-1)
+			if (xp == faceBB.x_min || xp == faceBB.x_max - 1 || yp == faceBB.y_min || yp == faceBB.y_max - 1)
 			{
 				debug_frame[idx] = 1.0f;
 				debug_frame[idx + 1] = 0.0f;
@@ -165,7 +165,7 @@ __global__ void cuComputeJacobian(
 			jacobian.block(i * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) = Eigen::MatrixXf::Zero(3, nExpressionCoeffs);
 
 			return;
-	}
+		}
 
 		// Sparse terms
 
@@ -239,7 +239,7 @@ __global__ void cuComputeJacobian(
 
 		auto jacobian_expression = jacobian_proj_world_local * expression_basis.block(3 * vertex_id, 0, 3, nExpressionCoeffs);
 		jacobian.block(i * 2, 7 + nShapeCoeffs, 2, nExpressionCoeffs) = jacobian_expression;
-}
+	}
 }
 
 __global__ void cuComputeVisiblePixelsAndBB(cudaTextureObject_t texture, FaceBoundingBox* face_bb, int width, int height)
@@ -259,7 +259,7 @@ __global__ void cuComputeVisiblePixelsAndBB(cudaTextureObject_t texture, FaceBou
 		atomicMin(&face_bb->y_min, index.y);
 		atomicMax(&face_bb->x_max, index.x);
 		atomicMax(&face_bb->y_max, index.y);
-	}	
+	}
 }
 
 FaceBoundingBox GaussNewtonSolver::computeFaceBoundingBox(const int imageWidth, const int imageHeight)
@@ -278,18 +278,18 @@ FaceBoundingBox GaussNewtonSolver::computeFaceBoundingBox(const int imageWidth, 
 
 	if (bb.num_visible_pixels <= 0 || bb.x_min >= bb.x_max || bb.y_min >= bb.y_max)
 	{
-		std::cout << "Warning: invalid face bounding box!" << std::endl; 
+		std::cout << "Warning: invalid face bounding box!" << std::endl;
 	}
 
 	bb.width = bb.x_max - bb.x_min;
 	bb.height = bb.y_max - bb.y_min;
 
-	return bb; 
+	return bb;
 }
 
 void GaussNewtonSolver::computeJacobian(
 	//shared memory
-	const FaceBoundingBox faceBB, 
+	const FaceBoundingBox faceBB,
 	const int nFeatures, const int imageWidth, const int imageHeight,
 	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs, const int nShCoeffs,
 	const int nUnknowns, const int nResiduals,
@@ -316,7 +316,7 @@ void GaussNewtonSolver::computeJacobian(
 	float* p_jacobian, float* p_residuals
 ) const
 {
-	const int nPixels = faceBB.width * faceBB.height; 
+	const int nPixels = faceBB.width * faceBB.height;
 
 	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
 	const int n = nFeatures + nPixels + nFaceCoeffs;
@@ -359,7 +359,7 @@ void GaussNewtonSolver::computeJacobian(
 
 		//device memory output
 		p_jacobian, p_residuals
-	);
+		);
 
 	cudaDeviceSynchronize();
 
@@ -374,7 +374,7 @@ void GaussNewtonSolver::computeJacobian(
 			auto idx = (x + y * faceBB.width) * 3;
 			// OpenCV expects it to be an BGRA image.
 			image_debug.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(temp_memory_host[idx + 2], temp_memory_host[idx + 1], temp_memory_host[idx]));
-}
+		}
 	}
 	cv::imwrite("../../dense_test.png", image_debug);
 #endif // TEST_TEXTURE
