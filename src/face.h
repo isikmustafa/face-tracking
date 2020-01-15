@@ -24,6 +24,8 @@ public:
 		const GLSLProgram* shader{ nullptr };
 		int screen_width{ 0 };
 		int screen_height{ 0 };
+		int texture_width{ 0 };
+		int texture_height{ 0 };
 		bool mapped_to_cuda{ false };
 	};
 

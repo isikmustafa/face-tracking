@@ -1,6 +1,5 @@
 #pragma once 
 
-
 #include "gauss_newton_solver.h"
 #include "util.h"
 #include "device_util.h"
@@ -8,15 +7,19 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 
+//#define TEST_TEXTURE
+
 __global__ void cuComputeJacobianSparseFeatures(
 	//shared memory
+	FaceBoundingBox faceBB,
 	const int nFeatures, const int imageWidth, const int imageHeight,
-	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
+	const int nFaceCoeffs, const int nPixels, const int n,
+	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs, const int nShCoeffs,
 	const int nUnknowns, const int nResiduals,
-	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
-	const float sqrt_wreg,
+	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal, const int nShCoeffsTotal,
+	const float wsparse, const float wdense, const float sqrt_wreg,
 
-	float* image,
+	uchar* image, float* debug_frame,
 
 	glm::mat4 face_pose, glm::mat3 drx, glm::mat3 dry, glm::mat3 drz, glm::mat4 projection, Eigen::Matrix3f jacobian_local,
 
@@ -30,6 +33,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 	float* p_coefficients_shape,
 	float* p_coefficients_expression,
 	float* p_coefficients_albedo,
+	float* p_coefficients_sh,
 
 	cudaTextureObject_t rgb,
 	cudaTextureObject_t barycentrics,
@@ -41,37 +45,51 @@ __global__ void cuComputeJacobianSparseFeatures(
 	int index = util::getThreadIndex1D();
 	int stride = blockDim.x * gridDim.x;
 
-	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
-	const int nPixels = imageWidth * imageHeight;
-	const int n = nFeatures + nPixels + nFaceCoeffs;
+	Eigen::Map<Eigen::MatrixXf> jacobian(p_jacobian, nResiduals, nUnknowns);
+	Eigen::Map<Eigen::VectorXf> residuals(p_residuals, nResiduals);
+
+	Eigen::Map<Eigen::MatrixXf> shape_basis(p_shape_basis, nVerticesTimes3, nShapeCoeffsTotal);
+	Eigen::Map<Eigen::MatrixXf> expression_basis(p_expression_basis, nVerticesTimes3, nExpressionCoeffsTotal);
+	Eigen::Map<Eigen::MatrixXf> albedo_basis(p_albedo_basis, nVerticesTimes3, nAlbedoCoeffsTotal);
 
 	for (int i = index; i < n; i += stride)
 	{
-		Eigen::Map<Eigen::MatrixXf> jacobian(p_jacobian, nResiduals, nUnknowns);
-		Eigen::Map<Eigen::VectorXf> residuals(p_residuals, nResiduals);
-
 		int offset_rows = nFeatures * 2 + nPixels * 3;
 		int offset_cols = 7;
 
 		// Regularization terms
-
-		if (i >= nResiduals - nFaceCoeffs)
+		if (i >= nFeatures + nPixels)
 		{
-			const int shape_expression = nShapeCoeffs + nExpressionCoeffs;
-			const int current_index = i - nResiduals - nFaceCoeffs;
-			// Range of offset for each coefficient
-			// 0 -> nShapeCoeffs -> (nShapeCoeffs + nExpressionCoeffs)
-			const int shift = current_index >= nShapeCoeffs ?
-				current_index >= shape_expression ? shape_expression : nShapeCoeffs : 0;
+			const int current_index = i - nFeatures - nPixels;
+			const int expression_shift = nShapeCoeffs;
+			const int albedo_shift = nShapeCoeffs + nExpressionCoeffs;
 
-			offset_rows += shift;
-			offset_cols += shift;
+			float coefficient = 0.f;
+			int relative_index = current_index;
 
-			const int relative_index = current_index - shift;
+			// Shape
+			if (current_index < expression_shift)
+			{
+				coefficient = p_coefficients_shape[relative_index];
+			}
+			// Expression
+			else if (current_index < albedo_shift)
+			{
+				offset_rows += expression_shift;
+				offset_cols += expression_shift;
+				relative_index -= expression_shift;
 
-			// Depending which shift is used the proper coefficient is selected
-			const float coefficient = shift == 0 ? p_coefficients_shape[relative_index] : shift == nShapeCoeffs ?
-				p_coefficients_expression[relative_index] : p_coefficients_albedo[relative_index];
+				coefficient = p_coefficients_expression[relative_index];
+			}
+			// Albedo
+			else
+			{
+				offset_rows += albedo_shift;
+				offset_cols += albedo_shift;
+				relative_index -= albedo_shift;
+
+				coefficient = p_coefficients_albedo[relative_index];
+			}
 
 			jacobian(offset_rows + relative_index, offset_cols + relative_index) = sqrt_wreg;
 			residuals(offset_rows + relative_index) = coefficient * sqrt_wreg;
@@ -79,25 +97,75 @@ __global__ void cuComputeJacobianSparseFeatures(
 			return;
 		}
 
-		Eigen::Map<Eigen::MatrixXf> shape_basis(p_shape_basis, nVerticesTimes3, nShapeCoeffsTotal);
-		Eigen::Map<Eigen::MatrixXf> expression_basis(p_expression_basis, nVerticesTimes3, nExpressionCoeffsTotal);
-		Eigen::Map<Eigen::MatrixXf> albedo_basis(p_albedo_basis, nVerticesTimes3, nAlbedoCoeffsTotal);
-
 		// Dense terms
-
 		if (i >= nFeatures)
 		{
-			// Placeholders
-			residuals(i * 3) = 0;
-			residuals(i * 3 + 1) = 0;
-			residuals(i * 3 + 2) = 0;
+			int idx = i - nFeatures;
+			unsigned int xp = idx % faceBB.width + faceBB.x_min;
+			unsigned int yp = idx / faceBB.width + faceBB.y_min;
+			/*unsigned int xp = idx % imageWidth;
+			unsigned int yp = idx / imageWidth;*/
+			int background_index = 3* (xp + yp * imageWidth);
+			int ygl = imageHeight - 1 - yp; // "height - 1 - index.y" OpenGL uses left-bottom corner as texture origin.
+			float4 face_rgb_sampled = tex2D<float4>(rgb, xp, ygl);
+
+#ifdef TEST_TEXTURE
+			idx *= 3;
+			if (face_rgb_sampled.w > 0)
+			{
+				debug_frame[idx] = face_rgb_sampled.x;
+				debug_frame[idx + 1] = face_rgb_sampled.y;
+				debug_frame[idx + 2] = face_rgb_sampled.z;
+			}
+			else
+			{
+				debug_frame[idx] = image[background_index] / 255.0f;
+				debug_frame[idx + 1] = image[background_index + 1] / 255.0f;
+				debug_frame[idx + 2] = image[background_index + 2] / 255.0f;
+			}
+			if(xp == faceBB.x_min || xp == faceBB.x_max-1 || yp == faceBB.y_min || yp == faceBB.y_max-1)
+			{
+				debug_frame[idx] = 1.0f;
+				debug_frame[idx + 1] = 0.0f;
+				debug_frame[idx + 2] = 0.0f;
+			}
+#endif // TEST_TEXTURE
+
+			if (face_rgb_sampled.w < 1.0f) return; // pixel is not covered by face
+
+			float4 bary_sampled = tex2D<float4>(barycentrics, xp, ygl);
+			int4 verts_s = tex2D<int4>(vertex_ids, xp, ygl);
+			Eigen::Map<Eigen::Vector3f> face_rgb(reinterpret_cast<float*>(&face_rgb_sampled));
+			Eigen::Vector3f frame_rgb;
+
+			frame_rgb.x() = image[background_index] / 255.0f;
+			frame_rgb.y() = image[background_index + 1] / 255.0f;
+			frame_rgb.z() = image[background_index + 2] / 255.0f;
+
+			Eigen::Vector3f residual = face_rgb - frame_rgb;
+			residuals.block(i * 3, 0, 3, 1) = residual * wdense;
+
+			// Albedo
+
+			auto& light = bary_sampled.w;
+
+			auto A = light * bary_sampled.x * albedo_basis.block(3 * verts_s.x, 0, 3, nAlbedoCoeffs);
+			auto B = light * bary_sampled.y * albedo_basis.block(3 * verts_s.y, 0, 3, nAlbedoCoeffs);
+			auto C = light * bary_sampled.z * albedo_basis.block(3 * verts_s.z, 0, 3, nAlbedoCoeffs);
+
+			jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = (A + B + C) * wdense;
+
+			//SH 
+
+
+
+			// Shape and expression
 
 			jacobian.block(i * 3, 7, 3, nShapeCoeffs) = Eigen::MatrixXf::Zero(3, nShapeCoeffs);
 			jacobian.block(i * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) = Eigen::MatrixXf::Zero(3, nExpressionCoeffs);
-			jacobian.block(i * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = Eigen::MatrixXf::Zero(3, nAlbedoCoeffs);
 
 			return;
-		}
+	}
 
 		// Sparse terms
 
@@ -124,8 +192,8 @@ __global__ void cuComputeJacobianSparseFeatures(
 		//Residual
 		auto residual = uv - sparse_features[i];
 
-		residuals(i * 2) = residual.x;
-		residuals(i * 2 + 1) = residual.y;
+		residuals(i * 2) = residual.x * wsparse;
+		residuals(i * 2 + 1) = residual.y * wsparse;
 
 		//Jacobian for homogenization (AKA division by w)
 		auto one_over_wp = 1.0f / proj_coord.w;
@@ -140,7 +208,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 		//Jacobian for intrinsics
 		jacobian_intrinsics(0, 0) = world_coord.x;
-		jacobian.block<2, 1>(i * 2, 0) = jacobian_proj * jacobian_intrinsics;
+		jacobian.block<2, 1>(i * 2, 0) = jacobian_proj * jacobian_intrinsics * wsparse;
 
 		//Derivative of world coordinates with respect to rotation coefficients
 		auto dx = drx * local_coord;
@@ -157,7 +225,7 @@ __global__ void cuComputeJacobianSparseFeatures(
 		jacobian_pose(1, 2) = dz[1];
 		jacobian_pose(2, 2) = dz[2];
 
-		auto jacobian_proj_world = jacobian_proj * jacobian_world;
+		auto jacobian_proj_world = jacobian_proj * jacobian_world * wsparse;
 		jacobian.block<2, 6>(i * 2, 1) = jacobian_proj_world * jacobian_pose;
 
 		//Derivative of world coordinates with respect to local coordinates.
@@ -171,18 +239,60 @@ __global__ void cuComputeJacobianSparseFeatures(
 
 		auto jacobian_expression = jacobian_proj_world_local * expression_basis.block(3 * vertex_id, 0, 3, nExpressionCoeffs);
 		jacobian.block(i * 2, 7 + nShapeCoeffs, 2, nExpressionCoeffs) = jacobian_expression;
-	}
 }
+}
+
+__global__ void cuComputeVisiblePixelsAndBB(cudaTextureObject_t texture, unsigned int* out, int width, int height)
+{
+	auto index = util::getThreadIndex2D();
+	if (index.x >= width || index.y >= height)
+	{
+		return;
+	}
+	int y = height - 1 - index.y; // "height - 1 - index.y" is used since OpenGL uses left-bottom corner as texture origin.
+	float4 color = tex2D<float4>(texture, index.x, y);
+
+	if (color.w > 0)
+	{
+		atomicInc(out, UINT32_MAX); 
+		atomicMin(out + 1, index.x); 
+		atomicMin(out + 2, index.y);
+		atomicMax(out + 3, index.x);
+		atomicMax(out + 4, index.y);
+	}	
+}
+
+FaceBoundingBox GaussNewtonSolver::computeFaceBoundingBox(const int imageWidth, const int imageHeight)
+{
+	util::DeviceArray<unsigned int> face_meta_gpu({ 0, (unsigned int)imageWidth, (unsigned int)imageHeight, 0, 0 });
+	dim3 threads_meta(16, 16);
+	dim3 blocks_meta(imageWidth / threads_meta.x + 1, imageHeight / threads_meta.y + 1);
+
+	cuComputeVisiblePixelsAndBB << <blocks_meta, threads_meta >> > (m_texture_rgb, face_meta_gpu.getPtr(), imageWidth, imageHeight);
+	FaceBoundingBox b; 
+	util::copy(reinterpret_cast<unsigned int*>(&b), face_meta_gpu, 5);
+	//std::cout << b.num_visible_pixels << " " << b.x_min << " " << b.y_min << " " << b.x_max << " " << b.y_max << std::endl; 
+
+	if (b.num_visible_pixels <= 0 || b.x_min >= b.x_max || b.y_min >= b.y_max)
+	{
+		std::cout << "Warning: invalid face bounding box!" << std::endl; 
+	}
+	b.width = b.x_max - b.x_min; 
+	b.height = b.y_max - b.y_min; 
+	return b; 
+}
+
 
 void GaussNewtonSolver::computeJacobianSparseFeatures(
 	//shared memory
+	const FaceBoundingBox faceBB, 
 	const int nFeatures, const int imageWidth, const int imageHeight,
-	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
+	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs, const int nShCoeffs,
 	const int nUnknowns, const int nResiduals,
-	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
-	const float regularizationWeight,
+	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal, const int nShcoeffsTotal,
+	float sparseWeight, float denseWeight, float regularizationWeight,
 
-	float* image,
+	uchar* image,
 
 	const glm::mat4& face_pose, const glm::mat3& drx, const glm::mat3& dry, const glm::mat3& drz, const glm::mat4& projection, const Eigen::Matrix3f& jacobian_local,
 
@@ -196,26 +306,34 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 	float* p_coefficients_shape,
 	float* p_coefficients_expression,
 	float* p_coefficients_albedo,
+	float* p_coefficients_sh,
 
 	//device memory output
 	float* p_jacobian, float* p_residuals
 ) const
 {
-	const int nPixels = imageWidth * imageHeight;
-	const int n = nFeatures + nPixels + m_params.num_shape_coefficients + m_params.num_expression_coefficients + m_params.num_albedo_coefficients;
+	//const int nPixels = imageWidth * imageHeight;
+	const int nPixels = faceBB.width * faceBB.height; 
+
+	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
+	const int n = nFeatures + nPixels + nFaceCoeffs;
 
 	const int threads = 256;
 	const int block = (n + threads - 1) / threads;
 
+	util::DeviceArray<float> temp_memory(nPixels * 3);
+
 	cuComputeJacobianSparseFeatures << <block, threads >> > (
 		//shared memory
+		faceBB, 
 		nFeatures, imageWidth, imageHeight,
-		nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs,
+		nFaceCoeffs, nPixels, n,
+		nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nShCoeffs,
 		nUnknowns, nResiduals,
-		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal, nAlbedoCoeffsTotal,
-		glm::sqrt(regularizationWeight),
+		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal, nAlbedoCoeffsTotal, nShcoeffsTotal,
+		sparseWeight / nFeatures, denseWeight / faceBB.num_visible_pixels, glm::sqrt(regularizationWeight),
 
-		image,
+		image, temp_memory.getPtr(),
 
 		face_pose, drx, dry, drz, projection, jacobian_local,
 
@@ -229,6 +347,7 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 		p_coefficients_shape,
 		p_coefficients_expression,
 		p_coefficients_albedo,
+		p_coefficients_sh,
 
 		m_texture_rgb,
 		m_texture_barycentrics,
@@ -238,6 +357,22 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 		p_jacobian, p_residuals);
 
 	cudaDeviceSynchronize();
+
+#ifdef TEST_TEXTURE
+	std::vector<float> temp_memory_host(nPixels * 3);
+	util::copy(temp_memory_host, temp_memory, temp_memory.getSize());
+	cv::Mat image_debug(cv::Size(faceBB.width, faceBB.height), CV_8UC3);
+	for (int y = 0; y < image_debug.rows; y++)
+	{
+		for (int x = 0; x < image_debug.cols; x++)
+		{
+			auto idx = (x + y * faceBB.width) * 3;
+			// OpenCV expects it to be an BGRA image.
+			image_debug.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(temp_memory_host[idx + 2], temp_memory_host[idx + 1], temp_memory_host[idx]));
+}
+	}
+	cv::imwrite("../../dense_test.png", image_debug);
+#endif // TEST_TEXTURE
 }
 
 __global__ void cuComputeJacobiPreconditioner(const int nUnknowns, const int nResiduals, float* p_jacobian, float* p_preconditioner)

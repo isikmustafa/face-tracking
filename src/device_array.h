@@ -125,4 +125,11 @@ namespace util
 		assert(dst.size() >= size && src.getSize() >= size);
 		CHECK_CUDA_ERROR(cudaMemcpy(dst.data() + offset_dst, src.getPtr() + offset_src, size * sizeof(T), cudaMemcpyDeviceToHost));
 	}
+
+	template<typename T>
+	void copy(T* dst, const DeviceArray<T>& src, int size, int offset_dst = 0, int offset_src = 0)
+	{
+		assert(src.getSize() >= size);
+		CHECK_CUDA_ERROR(cudaMemcpy(dst + offset_dst, src.getPtr() + offset_src, size * sizeof(T), cudaMemcpyDeviceToHost));
+	}
 }

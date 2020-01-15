@@ -170,7 +170,7 @@ void GaussNewtonSolver::solve_CPU(const std::vector<glm::vec2>& sparse_features,
 		solveUpdateCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
 		util::copy(result, result_gpu, nUnknowns);
 
-		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs);
+		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs, 0);
 
 		/*std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
 		std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
@@ -185,15 +185,20 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		return;
 	}
 
-	const int nPixels = face.m_graphics_settings.screen_width * face.m_graphics_settings.screen_height;
+	const int frameWidth = face.m_graphics_settings.texture_width; 
+	const int frameHeight = face.m_graphics_settings.texture_height;
+	const int nPixels = frameWidth * frameHeight;
 	const int nFeatures = sparse_features.size();
 	const int nShapeCoeffs = m_params.num_shape_coefficients;
 	const int nExpressionCoeffs = m_params.num_expression_coefficients;
 	const int nAlbedoCoeffs = m_params.num_albedo_coefficients;
-	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
+	const int nSHCoeffs = m_params.num_sh_coefficients;
+	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs + nSHCoeffs;
 	const int nResiduals = 2 * nFeatures + 3 * nPixels + nFaceCoeffs; //nFaceCoeffs -> regularizer
 	const int nUnknowns = 7 + nFaceCoeffs; //3+3+1 = 7 DoF for rotation, translation and intrinsics. Plus nFaceCoeffs for face parameters.
 
+	const float wSparse = std::powf(10, m_params.sparse_weight_exponent);
+	const float wDense = std::powf(10, m_params.dense_weight_exponent);
 	const float wReg = std::powf(10, m_params.regularisation_weight_exponent);
 
 	const auto& prior_local_ids = PriorSparseFeatures::get().getPriorIds();
@@ -208,6 +213,12 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	auto ids_gpu = util::DeviceArray<int>(prior_local_ids);
 	auto key_pts_gpu = util::DeviceArray<glm::vec2>(sparse_features);
 
+	cv::Mat processed_frame;
+	cv::resize(frame, processed_frame, cv::Size(frameWidth, frameHeight));
+	cv::cvtColor(processed_frame, processed_frame, cv::COLOR_BGR2RGB);
+	util::DeviceArray<uchar> frame_gpu = util::DeviceArray<uchar>(3 * nPixels);
+	util::copy(frame_gpu, processed_frame.data, 3 * nPixels);
+
 	jacobian_gpu.memset(0);
 	residuals_gpu.memset(0);
 
@@ -218,6 +229,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
 	{
 		face.computeFace();
+		face.updateVertexBuffer();
 		face.draw();
 
 		auto face_pose = face.computeModelMatrix();
@@ -230,19 +242,27 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		face.computeRotationDerivatives(drx, dry, drz);
 
 		mapRenderTargets(face);
+		FaceBoundingBox face_bb = computeFaceBoundingBox(face.m_graphics_settings.texture_width, face.m_graphics_settings.texture_height); 
 
+		int current_residuals = 2 * nFeatures + nFaceCoeffs + 3 * face_bb.width * face_bb.height; 
+		//int current_residuals = nResiduals;
+
+		//debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
+		auto sh_coeffs_gpu = util::DeviceArray<float>(face.m_sh_coefficients); 
 		//CUDA
 		computeJacobianSparseFeatures(
 			//shared memory
-			nFeatures, face.m_graphics_settings.screen_width, face.m_graphics_settings.screen_height,
-			nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nUnknowns, nResiduals,
+			face_bb,
+			nFeatures, frameWidth, frameHeight,
+			nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nSHCoeffs, nUnknowns, current_residuals,
 			face.m_number_of_vertices * 3,
 			face.m_shape_coefficients.size(),
 			face.m_expression_coefficients.size(),
 			face.m_albedo_coefficients.size(),
-			wReg,
+			face.m_sh_coefficients.size(),
+			wSparse, wDense, wReg,
 
-			reinterpret_cast<float*>(frame.data),
+			frame_gpu.getPtr(),
 
 			face_pose, drx, dry, drz, projection, jacobian_local,
 
@@ -256,7 +276,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			face.m_shape_coefficients_gpu.getPtr(),
 			face.m_expression_coefficients_gpu.getPtr(),
 			face.m_albedo_coefficients_gpu.getPtr(),
-
+			sh_coeffs_gpu.getPtr(), 
 			//device memory output
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
 		);
@@ -264,10 +284,10 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		unmapRenderTargets(face);
 
 		//Apply step and update poses GPU
-		solveUpdateCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
+		solveUpdateCG(m_cublas, nUnknowns, current_residuals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
 		util::copy(result, result_gpu, nUnknowns);
 
-		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs);
+		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);
 	}
 }
 
@@ -433,7 +453,7 @@ void GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int nU
 
 void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::mat4& projection,
 	glm::vec3& rotation_coefficients, glm::vec3& translation_coefficients, Face& face,
-	const int nShapeCoeffs, const int nExpressionCoeffs)
+	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs)
 {
 	projection[0][0] += result[0];
 
@@ -457,6 +477,13 @@ void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::
 	{
 		auto c = face.m_expression_coefficients[i] + result[7 + nShapeCoeffs + i];
 		face.m_expression_coefficients[i] = glm::clamp(c, 0.0f, 1.0f);
+	}
+
+#pragma omp parallel for
+	for (int i = 0; i < nAlbedoCoeffs; ++i)
+	{
+		auto c = face.m_albedo_coefficients[i] + result[7 + nShapeCoeffs + nExpressionCoeffs + i];
+		face.m_albedo_coefficients[i] = c;
 	}
 }
 
@@ -507,8 +534,6 @@ void GaussNewtonSolver::mapRenderTargets(Face& face)
 	CHECK_CUDA_ERROR(cudaCreateTextureObject(&m_texture_vertex_ids, &res_desc, &tex_desc, nullptr));
 
 	face.m_graphics_settings.mapped_to_cuda = true;
-
-	//debugFrameBufferTextures(face, "..//..//rgb.png", "..//..//rgb-deferred.png");
 }
 
 void GaussNewtonSolver::unmapRenderTargets(Face& face)
