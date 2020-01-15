@@ -106,13 +106,6 @@ namespace util
 	}
 
 	template<typename T>
-	void copy(DeviceArray<T>& dst, const T* src, int size, int offset_dst = 0, int offset_src = 0)
-	{
-		assert(dst.getSize() >= size && src.size() >= size);
-		CHECK_CUDA_ERROR(cudaMemcpy(dst.getPtr() + offset_dst, src + offset_src, size * sizeof(T), cudaMemcpyHostToDevice));
-	}
-
-	template<typename T>
 	void copy(std::vector<T>& dst, const std::vector<T>& src, int size, int offset_dst = 0, int offset_src = 0)
 	{
 		assert(dst.size() >= size && src.size() >= size);
@@ -127,9 +120,38 @@ namespace util
 	}
 
 	template<typename T>
+	void copy(DeviceArray<T>& dst, const T* src, int size, int offset_dst = 0, int offset_src = 0)
+	{
+		cudaPointerAttributes pointer_attributes;
+		memset(&pointer_attributes, 0, sizeof(pointer_attributes));
+		cudaPointerGetAttributes(&pointer_attributes, src);
+
+		if (pointer_attributes.type == cudaMemoryTypeDevice)
+		{
+			CHECK_CUDA_ERROR(cudaMemcpy(dst.getPtr() + offset_dst, src + offset_src, size * sizeof(T), cudaMemcpyDeviceToDevice));
+		}
+		else
+		{
+			cudaGetLastError();
+			CHECK_CUDA_ERROR(cudaMemcpy(dst.getPtr() + offset_dst, src + offset_src, size * sizeof(T), cudaMemcpyHostToDevice));
+		}
+	}
+
+	template<typename T>
 	void copy(T* dst, const DeviceArray<T>& src, int size, int offset_dst = 0, int offset_src = 0)
 	{
-		assert(src.getSize() >= size);
-		CHECK_CUDA_ERROR(cudaMemcpy(dst + offset_dst, src.getPtr() + offset_src, size * sizeof(T), cudaMemcpyDeviceToHost));
+		cudaPointerAttributes pointer_attributes;
+		memset(&pointer_attributes, 0, sizeof(pointer_attributes));
+		cudaPointerGetAttributes(&pointer_attributes, dst);
+
+		if (pointer_attributes.type == cudaMemoryTypeDevice)
+		{
+			CHECK_CUDA_ERROR(cudaMemcpy(dst + offset_dst, src.getPtr() + offset_src, size * sizeof(T), cudaMemcpyDeviceToDevice));
+		}
+		else
+		{
+			cudaGetLastError();
+			CHECK_CUDA_ERROR(cudaMemcpy(dst + offset_dst, src.getPtr() + offset_src, size * sizeof(T), cudaMemcpyDeviceToHost));
+		}
 	}
 }

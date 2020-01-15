@@ -4,6 +4,7 @@
 #include <Eigen/Dense>
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
+
 //Default
 struct SolverParameters
 {
@@ -26,8 +27,8 @@ struct SolverParameters
 struct FaceBoundingBox
 {
 	unsigned int num_visible_pixels = 0; 
-	unsigned int x_min = 0;
-	unsigned int y_min = 0;
+	unsigned int x_min = UINT_MAX;
+	unsigned int y_min = UINT_MAX;
 	unsigned int x_max = 0;
 	unsigned int y_max = 0;
 	unsigned int width = 0; 
@@ -69,9 +70,10 @@ private:
 	cudaTextureObject_t m_texture_rgb{ 0 };
 	cudaTextureObject_t m_texture_barycentrics{ 0 };
 	cudaTextureObject_t m_texture_vertex_ids{ 0 };
+	util::DeviceArray<FaceBoundingBox> m_face_bb;
 
 private:
-	void computeJacobianSparseFeatures(
+	void computeJacobian(
 		//shared memory
 		const FaceBoundingBox faceBB,
 		int nFeatures, const int imageWidth, const int imageHeight,
