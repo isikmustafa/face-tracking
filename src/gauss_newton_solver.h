@@ -8,7 +8,7 @@
 struct SolverParameters
 {
 	float sparse_weight_exponent = 2.0f;
-	float dense_weight_exponent = -1.7f;
+	float dense_weight_exponent = 2.7f;
 	float regularisation_weight_exponent = -4.6f;
 
 	int num_gn_iterations = 5;
@@ -21,6 +21,17 @@ struct SolverParameters
 
 	const float kNearZero = 1.0e-8;		// interpretation of "zero"
 	const float kTolerance = 1.0e-2;	//convergence if rtr < TOLERANCE
+};
+
+struct FaceBoundingBox
+{
+	unsigned int num_visible_pixels = 0; 
+	unsigned int x_min = 0;
+	unsigned int y_min = 0;
+	unsigned int x_max = 0;
+	unsigned int y_max = 0;
+	unsigned int width = 0; 
+	unsigned int height = 0; 
 };
 
 ////Debug
@@ -62,6 +73,7 @@ private:
 private:
 	void computeJacobianSparseFeatures(
 		//shared memory
+		const FaceBoundingBox faceBB,
 		int nFeatures, const int imageWidth, const int imageHeight,
 		int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs, int nShCoeffs,
 		int nUnknowns, int nResiduals,
@@ -88,7 +100,7 @@ private:
 		float* p_jacobian, float* p_residuals) const;
 
 	void elementwiseMultiplication(int nElements, float* v1, float* v2, float* out);
-
+	FaceBoundingBox computeFaceBoundingBox(const int imageWidth, const int imageHeight); 
 	void computeJacobiPreconditioner(int nUnknowns, int nResiduals, float* p_jacobian, float* p_preconditioner);
 
 	void solveUpdateCG(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,

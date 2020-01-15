@@ -184,6 +184,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	{
 		return;
 	}
+
 	const int frameWidth = face.m_graphics_settings.texture_width; 
 	const int frameHeight = face.m_graphics_settings.texture_height;
 	const int nPixels = frameWidth * frameHeight;
@@ -228,6 +229,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
 	{
 		face.computeFace();
+		face.updateVertexBuffer();
 		face.draw();
 
 		auto face_pose = face.computeModelMatrix();
@@ -240,13 +242,19 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		face.computeRotationDerivatives(drx, dry, drz);
 
 		mapRenderTargets(face);
+		FaceBoundingBox face_bb = computeFaceBoundingBox(face.m_graphics_settings.texture_width, face.m_graphics_settings.texture_height); 
+
+		int current_residuals = 2 * nFeatures + nFaceCoeffs + 3 * face_bb.width * face_bb.height; 
+		//int current_residuals = nResiduals;
+
 		//debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
 		auto sh_coeffs_gpu = util::DeviceArray<float>(face.m_sh_coefficients); 
 		//CUDA
 		computeJacobianSparseFeatures(
 			//shared memory
+			face_bb,
 			nFeatures, frameWidth, frameHeight,
-			nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nSHCoeffs, nUnknowns, nResiduals,
+			nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nSHCoeffs, nUnknowns, current_residuals,
 			face.m_number_of_vertices * 3,
 			face.m_shape_coefficients.size(),
 			face.m_expression_coefficients.size(),
@@ -276,7 +284,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		unmapRenderTargets(face);
 
 		//Apply step and update poses GPU
-		solveUpdateCG(m_cublas, nUnknowns, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
+		solveUpdateCG(m_cublas, nUnknowns, current_residuals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
 		util::copy(result, result_gpu, nUnknowns);
 
 		updateParameters(result, projection, rotation_coefficients, translation_coefficients, face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);

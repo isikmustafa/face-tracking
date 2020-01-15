@@ -11,6 +11,7 @@
 
 __global__ void cuComputeJacobianSparseFeatures(
 	//shared memory
+	FaceBoundingBox faceBB,
 	const int nFeatures, const int imageWidth, const int imageHeight,
 	const int nFaceCoeffs, const int nPixels, const int n,
 	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs, const int nShCoeffs,
@@ -100,14 +101,16 @@ __global__ void cuComputeJacobianSparseFeatures(
 		if (i >= nFeatures)
 		{
 			int idx = i - nFeatures;
-			int xp = idx % imageWidth;
-			int yp = idx / imageWidth;
-			idx *= 3;
-
+			unsigned int xp = idx % faceBB.width + faceBB.x_min;
+			unsigned int yp = idx / faceBB.width + faceBB.y_min;
+			/*unsigned int xp = idx % imageWidth;
+			unsigned int yp = idx / imageWidth;*/
+			int background_index = 3* (xp + yp * imageWidth);
 			int ygl = imageHeight - 1 - yp; // "height - 1 - index.y" OpenGL uses left-bottom corner as texture origin.
 			float4 face_rgb_sampled = tex2D<float4>(rgb, xp, ygl);
 
 #ifdef TEST_TEXTURE
+			idx *= 3;
 			if (face_rgb_sampled.w > 0)
 			{
 				debug_frame[idx] = face_rgb_sampled.x;
@@ -116,10 +119,16 @@ __global__ void cuComputeJacobianSparseFeatures(
 			}
 			else
 			{
-				debug_frame[idx] = image[idx] / 255.0;
-				debug_frame[idx + 1] = image[idx + 1] / 255.0;
-				debug_frame[idx + 2] = image[idx + 2] / 255.0;
-		}
+				debug_frame[idx] = image[background_index] / 255.0f;
+				debug_frame[idx + 1] = image[background_index + 1] / 255.0f;
+				debug_frame[idx + 2] = image[background_index + 2] / 255.0f;
+			}
+			if(xp == faceBB.x_min || xp == faceBB.x_max-1 || yp == faceBB.y_min || yp == faceBB.y_max-1)
+			{
+				debug_frame[idx] = 1.0f;
+				debug_frame[idx + 1] = 0.0f;
+				debug_frame[idx + 2] = 0.0f;
+			}
 #endif // TEST_TEXTURE
 
 			if (face_rgb_sampled.w < 1.0f) return; // pixel is not covered by face
@@ -129,9 +138,9 @@ __global__ void cuComputeJacobianSparseFeatures(
 			Eigen::Map<Eigen::Vector3f> face_rgb(reinterpret_cast<float*>(&face_rgb_sampled));
 			Eigen::Vector3f frame_rgb;
 
-			frame_rgb.x() = image[idx] / 255.0f;
-			frame_rgb.y() = image[idx + 1] / 255.0f;
-			frame_rgb.z() = image[idx + 2] / 255.0f;
+			frame_rgb.x() = image[background_index] / 255.0f;
+			frame_rgb.y() = image[background_index + 1] / 255.0f;
+			frame_rgb.z() = image[background_index + 2] / 255.0f;
 
 			Eigen::Vector3f residual = face_rgb - frame_rgb;
 			residuals.block(i * 3, 0, 3, 1) = residual * wdense;
@@ -233,8 +242,50 @@ __global__ void cuComputeJacobianSparseFeatures(
 }
 }
 
+__global__ void cuComputeVisiblePixelsAndBB(cudaTextureObject_t texture, unsigned int* out, int width, int height)
+{
+	auto index = util::getThreadIndex2D();
+	if (index.x >= width || index.y >= height)
+	{
+		return;
+	}
+	int y = height - 1 - index.y; // "height - 1 - index.y" is used since OpenGL uses left-bottom corner as texture origin.
+	float4 color = tex2D<float4>(texture, index.x, y);
+
+	if (color.w > 0)
+	{
+		atomicInc(out, UINT32_MAX); 
+		atomicMin(out + 1, index.x); 
+		atomicMin(out + 2, index.y);
+		atomicMax(out + 3, index.x);
+		atomicMax(out + 4, index.y);
+	}	
+}
+
+FaceBoundingBox GaussNewtonSolver::computeFaceBoundingBox(const int imageWidth, const int imageHeight)
+{
+	util::DeviceArray<unsigned int> face_meta_gpu({ 0, (unsigned int)imageWidth, (unsigned int)imageHeight, 0, 0 });
+	dim3 threads_meta(16, 16);
+	dim3 blocks_meta(imageWidth / threads_meta.x + 1, imageHeight / threads_meta.y + 1);
+
+	cuComputeVisiblePixelsAndBB << <blocks_meta, threads_meta >> > (m_texture_rgb, face_meta_gpu.getPtr(), imageWidth, imageHeight);
+	FaceBoundingBox b; 
+	util::copy(reinterpret_cast<unsigned int*>(&b), face_meta_gpu, 5);
+	//std::cout << b.num_visible_pixels << " " << b.x_min << " " << b.y_min << " " << b.x_max << " " << b.y_max << std::endl; 
+
+	if (b.num_visible_pixels <= 0 || b.x_min >= b.x_max || b.y_min >= b.y_max)
+	{
+		std::cout << "Warning: invalid face bounding box!" << std::endl; 
+	}
+	b.width = b.x_max - b.x_min; 
+	b.height = b.y_max - b.y_min; 
+	return b; 
+}
+
+
 void GaussNewtonSolver::computeJacobianSparseFeatures(
 	//shared memory
+	const FaceBoundingBox faceBB, 
 	const int nFeatures, const int imageWidth, const int imageHeight,
 	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs, const int nShCoeffs,
 	const int nUnknowns, const int nResiduals,
@@ -261,7 +312,9 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 	float* p_jacobian, float* p_residuals
 ) const
 {
-	const int nPixels = imageWidth * imageHeight;
+	//const int nPixels = imageWidth * imageHeight;
+	const int nPixels = faceBB.width * faceBB.height; 
+
 	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
 	const int n = nFeatures + nPixels + nFaceCoeffs;
 
@@ -272,12 +325,13 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 
 	cuComputeJacobianSparseFeatures << <block, threads >> > (
 		//shared memory
+		faceBB, 
 		nFeatures, imageWidth, imageHeight,
 		nFaceCoeffs, nPixels, n,
 		nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nShCoeffs,
 		nUnknowns, nResiduals,
 		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal, nAlbedoCoeffsTotal, nShcoeffsTotal,
-		sparseWeight / nFeatures, denseWeight, glm::sqrt(regularizationWeight),
+		sparseWeight / nFeatures, denseWeight / faceBB.num_visible_pixels, glm::sqrt(regularizationWeight),
 
 		image, temp_memory.getPtr(),
 
@@ -307,12 +361,12 @@ void GaussNewtonSolver::computeJacobianSparseFeatures(
 #ifdef TEST_TEXTURE
 	std::vector<float> temp_memory_host(nPixels * 3);
 	util::copy(temp_memory_host, temp_memory, temp_memory.getSize());
-	cv::Mat image_debug(cv::Size(imageWidth, imageHeight), CV_8UC3);
+	cv::Mat image_debug(cv::Size(faceBB.width, faceBB.height), CV_8UC3);
 	for (int y = 0; y < image_debug.rows; y++)
 	{
 		for (int x = 0; x < image_debug.cols; x++)
 		{
-			auto idx = (x + y * imageWidth) * 3;
+			auto idx = (x + y * faceBB.width) * 3;
 			// OpenCV expects it to be an BGRA image.
 			image_debug.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(temp_memory_host[idx + 2], temp_memory_host[idx + 1], temp_memory_host[idx]));
 }
