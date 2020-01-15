@@ -9,7 +9,7 @@
 
 GaussNewtonSolver::GaussNewtonSolver()
 	: m_face_bb(1)
-	, m_sh_coefficients(9)
+	, m_sh_coefficients_gpu(9)
 {
 	cublasCreate(&m_cublas);
 }
@@ -86,7 +86,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		int current_residuals = 2 * nFeatures + nFaceCoeffs + 3 * face_bb.width * face_bb.height;
 
 		//debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
-		util::copy(m_sh_coefficients, face.m_sh_coefficients, 9);
+		util::copy(m_sh_coefficients_gpu, face.m_sh_coefficients, 9);
 
 		//CUDA
 		computeJacobian(
@@ -115,7 +115,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			face.m_shape_coefficients_gpu.getPtr(),
 			face.m_expression_coefficients_gpu.getPtr(),
 			face.m_albedo_coefficients_gpu.getPtr(),
-			m_sh_coefficients.getPtr(),
+			m_sh_coefficients_gpu.getPtr(),
 
 			//device memory output
 			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
@@ -304,32 +304,32 @@ void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::
 	face.m_translation_coefficients.y += result[5];
 	face.m_translation_coefficients.z += result[6];
 
-#pragma parallel
+#pragma omp parallel num_threads(4)
 	{
-
-#pragma omp for
+#pragma omp single
 		for (int i = 0; i < nShapeCoeffs; ++i)
 		{
 			face.m_shape_coefficients[i] += result[7 + i];
 		}
 
-#pragma omp for
+#pragma omp single
 		for (int i = 0; i < nExpressionCoeffs; ++i)
 		{
 			auto c = face.m_expression_coefficients[i] + result[7 + nShapeCoeffs + i];
 			face.m_expression_coefficients[i] = glm::clamp(c, 0.0f, 1.0f);
 		}
 
-#pragma omp for
+#pragma omp single
 		for (int i = 0; i < nAlbedoCoeffs; ++i)
 		{
 			face.m_albedo_coefficients[i] += result[7 + nShapeCoeffs + nExpressionCoeffs + i];
 		}
-	}
 
-	for (int i = 0; i < 9; ++i)
-	{
-		face.m_sh_coefficients[i] += result[7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs + i];
+#pragma omp single
+		for (int i = 0; i < 9; ++i)
+		{
+			face.m_sh_coefficients[i] += result[7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs + i];
+		}
 	}
 }
 

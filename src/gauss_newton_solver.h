@@ -69,12 +69,12 @@ private:
 	cudaTextureObject_t m_texture_barycentrics{ 0 };
 	cudaTextureObject_t m_texture_vertex_ids{ 0 };
 	util::DeviceArray<FaceBoundingBox> m_face_bb;
-	util::DeviceArray<float> m_sh_coefficients;
+	util::DeviceArray<float> m_sh_coefficients_gpu;
 
 private:
 	void computeJacobian(
 		//shared memory
-		const FaceBoundingBox faceBB,
+		const FaceBoundingBox face_bb,
 		int nFeatures, const int imageWidth, const int imageHeight,
 		int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs,
 		int nUnknowns, int nResiduals,
