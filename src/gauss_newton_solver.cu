@@ -131,7 +131,10 @@ __global__ void cuComputeJacobian(
 			}
 #endif // TEST_TEXTURE
 
-			if (face_rgb_sampled.w < 1.0f) return; // pixel is not covered by face
+			if (face_rgb_sampled.w < 1.0f) // pixel is not covered by face
+			{
+				return;
+			}
 
 			float4 bary_sampled = tex2D<float4>(barycentrics, xp, ygl);
 			int4 verts_s = tex2D<int4>(vertex_ids, xp, ygl);
@@ -146,7 +149,6 @@ __global__ void cuComputeJacobian(
 			residuals.block(i * 3, 0, 3, 1) = residual * wDense;
 
 			// Albedo
-
 			auto& light = bary_sampled.w;
 
 			auto A = light * bary_sampled.x * albedo_basis.block(3 * verts_s.x, 0, 3, nAlbedoCoeffs);

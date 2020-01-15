@@ -86,6 +86,7 @@ private:
 	util::DeviceArray<glm::vec3> m_average_face_gpu;
 	util::DeviceArray<glm::vec3> m_current_face_gpu;
 	util::DeviceArray<glm::ivec3> m_faces_gpu;
+	util::DeviceArray<int> m_neighbourfaces_per_vertex;
 
 	//cuBLAS
 	cublasHandle_t m_cublas;
