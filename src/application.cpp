@@ -11,8 +11,6 @@
 
 constexpr int kScreenWidth = 1200;
 constexpr int kScreenHeight = 900;
-//constexpr int kScreenWidth = 640;
-//constexpr int kScreenHeight = 360;
 constexpr int kTextureWidth = 640;
 constexpr int kTextureHeight = 360;
 constexpr glm::ivec2 kGuiPosition(0, 0);
@@ -29,7 +27,7 @@ Application::Application()
 	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {
 	//m_camera = cv::VideoCapture(0);
-	m_camera = cv::VideoCapture("./demo2.mp4");
+	m_camera = cv::VideoCapture("./demo1.mp4");
 }
 
 Application::~Application()

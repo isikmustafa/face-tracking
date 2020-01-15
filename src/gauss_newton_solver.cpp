@@ -8,6 +8,7 @@
 #include <chrono>
 
 GaussNewtonSolver::GaussNewtonSolver()
+	: m_face_bb(1)
 {
 	cublasCreate(&m_cublas);
 }
@@ -250,7 +251,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		//debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
 		auto sh_coeffs_gpu = util::DeviceArray<float>(face.m_sh_coefficients); 
 		//CUDA
-		computeJacobianSparseFeatures(
+		computeJacobian(
 			//shared memory
 			face_bb,
 			nFeatures, frameWidth, frameHeight,
