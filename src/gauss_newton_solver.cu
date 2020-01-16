@@ -112,24 +112,23 @@ __global__ void cuComputeJacobian(
 		float4 rgb_sampled = tex2D<float4>(rgb, xp, ygl);
 
 #ifdef TEST_TEXTURE
-		current_index *= 3;
 		if (rgb_sampled.w > 0)
 		{
-			debug_frame[current_index] = rgb_sampled.x;
-			debug_frame[current_index + 1] = rgb_sampled.y;
-			debug_frame[current_index + 2] = rgb_sampled.z;
+			debug_frame[current_index * 3] = rgb_sampled.x;
+			debug_frame[current_index * 3 + 1] = rgb_sampled.y;
+			debug_frame[current_index * 3 + 2] = rgb_sampled.z;
 		}
 		else
 		{
-			debug_frame[current_index] = image[background_index] / 255.0f;
-			debug_frame[current_index + 1] = image[background_index + 1] / 255.0f;
-			debug_frame[current_index + 2] = image[background_index + 2] / 255.0f;
+			debug_frame[current_index * 3] = image[background_index] / 255.0f;
+			debug_frame[current_index * 3 + 1] = image[background_index + 1] / 255.0f;
+			debug_frame[current_index * 3 + 2] = image[background_index + 2] / 255.0f;
 		}
 		if (xp == face_bb.x_min || xp == face_bb.x_max - 1 || yp == face_bb.y_min || yp == face_bb.y_max - 1)
 		{
-			debug_frame[current_index] = 1.0f;
-			debug_frame[current_index + 1] = 0.0f;
-			debug_frame[current_index + 2] = 0.0f;
+			debug_frame[current_index * 3] = 1.0f;
+			debug_frame[current_index * 3 + 1] = 0.0f;
+			debug_frame[current_index * 3 + 2] = 0.0f;
 		}
 #endif // TEST_TEXTURE
 
@@ -159,8 +158,35 @@ __global__ void cuComputeJacobian(
 
 		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) = (A + B + C) * wDense;
 
-		//SH 
-		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs, 3, 9) = Eigen::Matrix<float, 3, 9>::Zero();
+		//SH
+		auto number_of_vertices = nVerticesTimes3 / 3;
+		auto albedos = current_face + number_of_vertices;
+		auto normals = current_face + 2 * number_of_vertices;
+
+		auto normal_a_glm = glm::normalize(glm::mat3(face_pose) * normals[vertex_ids_sampled.x]);
+		auto normal_b_glm = glm::normalize(glm::mat3(face_pose) * normals[vertex_ids_sampled.y]);
+		auto normal_c_glm = glm::normalize(glm::mat3(face_pose) * normals[vertex_ids_sampled.z]);
+
+		auto albedo_glm = barycentrics_sampled.x * albedos[vertex_ids_sampled.x] + barycentrics_sampled.y * albedos[vertex_ids_sampled.y] + barycentrics_sampled.z * albedos[vertex_ids_sampled.z];
+		auto normal_glm = glm::normalize(barycentrics_sampled.x * normal_a_glm + barycentrics_sampled.y * normal_b_glm + barycentrics_sampled.z * normal_c_glm);
+
+		Eigen::Vector3f albedo;
+		albedo << albedo_glm.x, albedo_glm.y, albedo_glm.z;
+		Eigen::Vector3f normal;
+		normal << normal_glm.x, normal_glm.y, normal_glm.z;
+
+		Eigen::VectorXf bands(9);
+		bands(0) = 1.0f;
+		bands(1) = normal.y();
+		bands(2) = normal.z();
+		bands(3) = normal.x();
+		bands(4) = normal.x() * normal.y();
+		bands(5) = normal.y() * normal.z();
+		bands(6) = 3.0f * normal.z() * normal.z() - 1.0f;
+		bands(7) = normal.x() * normal.z();
+		bands(8) = normal.x() * normal.x() - normal.y() * normal.y();
+
+		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs, 3, 9) = wDense * albedo * bands.transpose();
 
 		// Shape and expression
 		jacobian.block(offset_rows + current_index * 3, 7, 3, nShapeCoeffs) = Eigen::MatrixXf::Zero(3, nShapeCoeffs);
