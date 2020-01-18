@@ -46,8 +46,6 @@ Face::Face(const std::string& morphable_model_directory)
 		file >> tex_coords[i].x >> tex_coords[i].y;
 	}
 
-	std::vector<int> neighbourfaces_per_vertex(m_number_of_vertices * 8, -1); // At most 8 neighbour face per-vertex.
-	std::vector<int> temp_counter(m_number_of_vertices, 0); // At most 8 neighbour face per-vertex.
 	for (int i = 0; i < number_of_faces; ++i)
 	{
 		file >> int_dummy;
@@ -55,24 +53,8 @@ Face::Face(const std::string& morphable_model_directory)
 		faces[i].x = indices[i * 3];
 		faces[i].y = indices[i * 3 + 1];
 		faces[i].z = indices[i * 3 + 2];
-
-		neighbourfaces_per_vertex[8 * faces[i].x + temp_counter[faces[i].x]++] = i;
-		neighbourfaces_per_vertex[8 * faces[i].y + temp_counter[faces[i].y]++] = i;
-		neighbourfaces_per_vertex[8 * faces[i].z + temp_counter[faces[i].z]++] = i;
 	}
 	file.close();
-
-	m_neighbourfaces_per_vertex = neighbourfaces_per_vertex;
-
-	/*int max_neighbourfaces = -1;
-	int min_neighbourfaces = INT_MAX;
-	for (auto count : temp_counter)
-	{
-		max_neighbourfaces = std::max(max_neighbourfaces, static_cast<int>(count));
-		min_neighbourfaces = std::min(min_neighbourfaces, static_cast<int>(count));
-	}
-	std::cout << "Max number of per-vertex neighbours: " << max_neighbourfaces << std::endl;
-	std::cout << "Min number of per-vertex neighbours: " << min_neighbourfaces << std::endl;*/
 
 	for (auto id : PriorSparseFeatures::get().getPriorIds())
 	{
