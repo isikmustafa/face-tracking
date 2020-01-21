@@ -37,7 +37,7 @@
     <ClInclude Include="..\3rd\imgui\imstb_textedit.h" />
     <ClInclude Include="..\3rd\imgui\imstb_truetype.h" />
     <ClInclude Include="..\src\application.h" />
-    <ClInclude Include="..\src\gradient_util.h" />
+    <ClInclude Include="..\src\jacobian_util.h" />
     <ClInclude Include="..\src\prior_sparse_features.h" />
     <ClInclude Include="..\src\device_array.h" />
     <ClInclude Include="..\src\device_util.h" />

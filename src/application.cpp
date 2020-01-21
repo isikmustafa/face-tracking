@@ -24,7 +24,7 @@ Application::Application()
 	, m_solver()
 	, m_tracker()
 	, m_menu(kGuiPosition, kGuiSize)
-	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
+	, m_projection(glm::perspectiveRH_NO(glm::radians(75.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {
 	//m_camera = cv::VideoCapture(0);
 	m_camera = cv::VideoCapture("./demo1.mp4");

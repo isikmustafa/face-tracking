@@ -2,6 +2,7 @@
 
 #include "gauss_newton_solver.h"
 #include "util.h"
+#include "jacobian_util.h"
 #include "device_util.h"
 #include "device_array.h"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -17,7 +18,7 @@ __global__ void cuComputeJacobian(
 	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
 	const int nUnknowns, const int nResiduals,
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
-	const float wSparse, const float wDense, const float sqrtwReg,
+	const float wSparse, const float wDense, const float wReg,
 
 	uchar* image, float* debug_frame,
 
@@ -65,7 +66,7 @@ __global__ void cuComputeJacobian(
 		const int expression_shift = nShapeCoeffs;
 		const int albedo_shift = nShapeCoeffs + nExpressionCoeffs;
 
-		float coefficient = 0.f;
+		float coefficient = 0.0f;
 		int relative_index = current_index;
 
 		// Shape
@@ -92,8 +93,8 @@ __global__ void cuComputeJacobian(
 			coefficient = p_coefficients_albedo[relative_index];
 		}
 
-		jacobian(offset_rows + relative_index, offset_cols + relative_index) = sqrtwReg;
-		residuals(offset_rows + relative_index) = coefficient * sqrtwReg;
+		jacobian(offset_rows + relative_index, offset_cols + relative_index) = wReg;
+		residuals(offset_rows + relative_index) = coefficient * wReg;
 
 		return;
 	}
@@ -110,27 +111,6 @@ __global__ void cuComputeJacobian(
 		int background_index = 3 * (xp + yp * imageWidth);
 		int ygl = imageHeight - 1 - yp; // "height - 1 - index.y" OpenGL uses left-bottom corner as texture origin.
 		float4 rgb_sampled = tex2D<float4>(rgb, xp, ygl);
-
-#ifdef TEST_TEXTURE
-		if (rgb_sampled.w > 0)
-		{
-			debug_frame[current_index * 3] = rgb_sampled.x;
-			debug_frame[current_index * 3 + 1] = rgb_sampled.y;
-			debug_frame[current_index * 3 + 2] = rgb_sampled.z;
-		}
-		else
-		{
-			debug_frame[current_index * 3] = image[background_index] / 255.0f;
-			debug_frame[current_index * 3 + 1] = image[background_index + 1] / 255.0f;
-			debug_frame[current_index * 3 + 2] = image[background_index + 2] / 255.0f;
-		}
-		if (xp == face_bb.x_min || xp == face_bb.x_max - 1 || yp == face_bb.y_min || yp == face_bb.y_max - 1)
-		{
-			debug_frame[current_index * 3] = 1.0f;
-			debug_frame[current_index * 3 + 1] = 0.0f;
-			debug_frame[current_index * 3 + 2] = 0.0f;
-		}
-#endif // TEST_TEXTURE
 
 		if (rgb_sampled.w < 1.0f) // pixel is not covered by face
 		{
@@ -149,7 +129,7 @@ __global__ void cuComputeJacobian(
 		Eigen::Vector3f residual = face_rgb - frame_rgb;
 		residuals.block(offset_rows + current_index * 3, 0, 3, 1) = residual * wDense;
 
-		// Albedo
+		//Albedo
 		auto& light = barycentrics_sampled.w;
 
 		auto A = light * barycentrics_sampled.x * albedo_basis.block(3 * vertex_ids_sampled.x, 0, 3, nAlbedoCoeffs);
@@ -163,52 +143,150 @@ __global__ void cuComputeJacobian(
 		auto albedos = current_face + number_of_vertices;
 		auto normals = current_face + 2 * number_of_vertices;
 
-		auto normal_a_glm = glm::normalize(glm::mat3(face_pose) * normals[vertex_ids_sampled.x]);
-		auto normal_b_glm = glm::normalize(glm::mat3(face_pose) * normals[vertex_ids_sampled.y]);
-		auto normal_c_glm = glm::normalize(glm::mat3(face_pose) * normals[vertex_ids_sampled.z]);
+		auto normal_a_unnorm_glm = glm::mat3(face_pose) * normals[vertex_ids_sampled.x];
+		auto normal_b_unnorm_glm = glm::mat3(face_pose) * normals[vertex_ids_sampled.y];
+		auto normal_c_unnorm_glm = glm::mat3(face_pose) * normals[vertex_ids_sampled.z];
+
+		auto normal_a_glm = glm::normalize(normal_a_unnorm_glm);
+		auto normal_b_glm = glm::normalize(normal_b_unnorm_glm);
+		auto normal_c_glm = glm::normalize(normal_c_unnorm_glm);
 
 		auto albedo_glm = barycentrics_sampled.x * albedos[vertex_ids_sampled.x] + barycentrics_sampled.y * albedos[vertex_ids_sampled.y] + barycentrics_sampled.z * albedos[vertex_ids_sampled.z];
-		auto normal_glm = glm::normalize(barycentrics_sampled.x * normal_a_glm + barycentrics_sampled.y * normal_b_glm + barycentrics_sampled.z * normal_c_glm);
+		auto normal_unnorm_glm = barycentrics_sampled.x * normal_a_glm + barycentrics_sampled.y * normal_b_glm + barycentrics_sampled.z * normal_c_glm;
+		auto normal_glm = glm::normalize(normal_unnorm_glm);
 
 		Eigen::Vector3f albedo;
 		albedo << albedo_glm.x, albedo_glm.y, albedo_glm.z;
-		Eigen::Vector3f normal;
-		normal << normal_glm.x, normal_glm.y, normal_glm.z;
 
-		Eigen::VectorXf bands(9);
-		bands(0) = 1.0f;
-		bands(1) = normal.y();
-		bands(2) = normal.z();
-		bands(3) = normal.x();
-		bands(4) = normal.x() * normal.y();
-		bands(5) = normal.y() * normal.z();
-		bands(6) = 3.0f * normal.z() * normal.z() - 1.0f;
-		bands(7) = normal.x() * normal.z();
-		bands(8) = normal.x() * normal.x() - normal.y() * normal.y();
+		Eigen::Matrix<float, 1, 9> bands(9);
+		bands(0, 0) = 1.0f;
+		bands(0, 1) = normal_glm.y;
+		bands(0, 2) = normal_glm.z;
+		bands(0, 3) = normal_glm.x;
+		bands(0, 4) = normal_glm.x * normal_glm.y;
+		bands(0, 5) = normal_glm.y * normal_glm.z;
+		bands(0, 6) = 3.0f * normal_glm.z * normal_glm.z - 1.0f;
+		bands(0, 7) = normal_glm.x * normal_glm.z;
+		bands(0, 8) = normal_glm.x * normal_glm.x - normal_glm.y * normal_glm.y;
 
-		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs, 3, 9) = wDense * albedo * bands.transpose();
+		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs, 3, 9) = wDense * albedo * bands;
 
-		// Shape and expression
-		jacobian.block(offset_rows + current_index * 3, 7, 3, nShapeCoeffs) = Eigen::MatrixXf::Zero(3, nShapeCoeffs);
-		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) = Eigen::MatrixXf::Zero(3, nExpressionCoeffs);
 
+
+
+
+
+
+
+
+
+		//Pose
+		auto local_coord = barycentrics_sampled.x * current_face[vertex_ids_sampled.x] +
+			barycentrics_sampled.y * current_face[vertex_ids_sampled.y] +
+			barycentrics_sampled.z * current_face[vertex_ids_sampled.z];
+
+		auto world_coord = face_pose * glm::vec4(local_coord, 1.0f);
+		auto proj_coord = projection * world_coord;
+
+
+		//Derivative of source image with respect to (u,v)
+		//TODO: Check for boundary for xp and yp
+		Eigen::Matrix<float, 3, 2> jacobian_uv = Eigen::MatrixXf::Zero(3, 2);
+
+		int background_index_right = 3 * (xp + 1 + yp * imageWidth);
+		int background_index_down = 3 * (xp + (yp + 1) * imageWidth);
+		jacobian_uv(0, 0) = (image[background_index_right] / 255.0f - frame_rgb.x()) * imageWidth;
+		jacobian_uv(1, 0) = (image[background_index_right + 1] / 255.0f - frame_rgb.y()) * imageWidth;
+		jacobian_uv(2, 0) = (image[background_index_right + 2] / 255.0f - frame_rgb.z()) * imageWidth;
+		jacobian_uv(0, 1) = (image[background_index_down] / 255.0f - frame_rgb.x()) * imageHeight;
+		jacobian_uv(1, 1) = (image[background_index_down + 1] / 255.0f - frame_rgb.y()) * imageHeight;
+		jacobian_uv(2, 1) = (image[background_index_down + 2] / 255.0f - frame_rgb.z()) * imageHeight;
+		jacobian_uv = -jacobian_uv;
+
+		/*auto color_right = tex2D<float4>(rgb, xp + 1, ygl);
+		auto color_down = tex2D<float4>(rgb, xp, ygl - 1);
+		jacobian_uv(0, 0) = (color_right.x - frame_rgb.x()) * imageWidth;
+		jacobian_uv(1, 0) = (color_right.y - frame_rgb.y()) * imageWidth;
+		jacobian_uv(2, 0) = (color_right.z - frame_rgb.z()) * imageWidth;
+		jacobian_uv(0, 1) = (color_down.x - frame_rgb.x()) * imageHeight;
+		jacobian_uv(1, 1) = (color_down.y - frame_rgb.y()) * imageHeight;
+		jacobian_uv(2, 1) = (color_down.z - frame_rgb.z()) * imageHeight;*/
+
+		//Jacobian for homogenization (AKA division by w)
+		Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
+		auto one_over_wp = 1.0f / proj_coord.w;
+		jacobian_proj(0, 0) = one_over_wp;
+		jacobian_proj(0, 2) = -proj_coord.x * one_over_wp * one_over_wp;
+
+		jacobian_proj(1, 1) = one_over_wp;
+		jacobian_proj(1, 2) = -proj_coord.y * one_over_wp * one_over_wp;
+
+		//Jacobian for projection
+		Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
+		jacobian_world(0, 0) = projection[0][0];
+		jacobian_world(1, 1) = projection[1][1];
+		jacobian_world(2, 2) = -1.0f;
+
+		//Jacobian for intrinsics
+		Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
+		jacobian_intrinsics(0, 0) = world_coord.x;
+		jacobian.block<3, 1>(offset_rows + current_index * 3, 0) = jacobian_uv * jacobian_proj * jacobian_intrinsics * wDense;
+
+		//Derivative of world coordinates with respect to rotation coefficients
+		auto dx = drx * local_coord;
+		auto dy = dry * local_coord;
+		auto dz = drz * local_coord;
+
+		Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
+		jacobian_pose(0, 3) = 1.0f;
+		jacobian_pose(1, 4) = 1.0f;
+		jacobian_pose(2, 5) = 1.0f;
+		jacobian_pose(0, 0) = dx[0];
+		jacobian_pose(1, 0) = dx[1];
+		jacobian_pose(2, 0) = dx[2];
+		jacobian_pose(0, 1) = dy[0];
+		jacobian_pose(1, 1) = dy[1];
+		jacobian_pose(2, 1) = dy[2];
+		jacobian_pose(0, 2) = dz[0];
+		jacobian_pose(1, 2) = dz[1];
+		jacobian_pose(2, 2) = dz[2];
+
+		//jacobian.block<3, 6>(offset_rows + current_index * 3, 1) = jacobian_uv * jacobian_proj * jacobian_world * jacobian_pose * wDense;
+
+
+
+
+
+#ifdef TEST_TEXTURE
+		if (rgb_sampled.w > 0)
+		{
+			debug_frame[current_index * 3] = face_rgb.x();
+			debug_frame[current_index * 3 + 1] = face_rgb.y();
+			debug_frame[current_index * 3 + 2] = face_rgb.z();
+
+			/*debug_frame[current_index * 3] = frame_rgb.x();
+			debug_frame[current_index * 3 + 1] = frame_rgb.y();
+			debug_frame[current_index * 3 + 2] = frame_rgb.z();*/
+
+			/*debug_frame[current_index * 3] = barycentrics_sampled.x;
+			debug_frame[current_index * 3 + 1] = barycentrics_sampled.y;
+			debug_frame[current_index * 3 + 2] = barycentrics_sampled.z;*/
+
+			/*debug_frame[current_index * 3] = (normal_glm.x + 1.0f) * 0.5f;
+			debug_frame[current_index * 3 + 1] = (normal_glm.y + 1.0f) * 0.5f;
+			debug_frame[current_index * 3 + 2] = (normal_glm.z + 1.0f) * 0.5f;*/
+		}
+		else
+		{
+			//debug_frame[current_index * 3] = image[background_index] / 255.0f;
+			//debug_frame[current_index * 3 + 1] = image[background_index + 1] / 255.0f;
+			//debug_frame[current_index * 3 + 2] = image[background_index + 2] / 255.0f;
+		}
+#endif // TEST_TEXTURE
 		return;
 	}
 
 	// Sparse terms
-	Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
-
-	Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
-	jacobian_world(1, 1) = projection[1][1];
-	jacobian_world(2, 2) = -1.0f;
-
-	Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
-
-	Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
-	jacobian_pose(0, 3) = 1.0f;
-	jacobian_pose(1, 4) = 1.0f;
-	jacobian_pose(2, 5) = 1.0f;
-
 	auto vertex_id = prior_local_ids[i];
 	auto local_coord = current_face[vertex_id];
 
@@ -223,6 +301,7 @@ __global__ void cuComputeJacobian(
 	residuals(i * 2 + 1) = residual.y * wSparse;
 
 	//Jacobian for homogenization (AKA division by w)
+	Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
 	auto one_over_wp = 1.0f / proj_coord.w;
 	jacobian_proj(0, 0) = one_over_wp;
 	jacobian_proj(0, 2) = -proj_coord.x * one_over_wp * one_over_wp;
@@ -231,9 +310,13 @@ __global__ void cuComputeJacobian(
 	jacobian_proj(1, 2) = -proj_coord.y * one_over_wp * one_over_wp;
 
 	//Jacobian for projection
+	Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
 	jacobian_world(0, 0) = projection[0][0];
+	jacobian_world(1, 1) = projection[1][1];
+	jacobian_world(2, 2) = -1.0f;
 
 	//Jacobian for intrinsics
+	Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
 	jacobian_intrinsics(0, 0) = world_coord.x;
 	jacobian.block<2, 1>(i * 2, 0) = jacobian_proj * jacobian_intrinsics * wSparse;
 
@@ -242,6 +325,10 @@ __global__ void cuComputeJacobian(
 	auto dy = dry * local_coord;
 	auto dz = drz * local_coord;
 
+	Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
+	jacobian_pose(0, 3) = 1.0f;
+	jacobian_pose(1, 4) = 1.0f;
+	jacobian_pose(2, 5) = 1.0f;
 	jacobian_pose(0, 0) = dx[0];
 	jacobian_pose(1, 0) = dx[1];
 	jacobian_pose(2, 0) = dx[2];
@@ -278,7 +365,7 @@ __global__ void cuComputeVisiblePixelsAndBB(cudaTextureObject_t texture, FaceBou
 	int y = height - 1 - index.y; // "height - 1 - index.y" is used since OpenGL uses left-bottom corner as texture origin.
 	float4 color = tex2D<float4>(texture, index.x, y);
 
-	if (color.w > 0)
+	if (color.w > 0.0f)
 	{
 		atomicInc(&face_bb->num_visible_pixels, UINT32_MAX);
 		atomicMin(&face_bb->x_min, index.x);
@@ -348,7 +435,7 @@ void GaussNewtonSolver::computeJacobian(
 	const int n = nFeatures + nPixels + nFaceCoeffs;
 
 	//TODO: Fine tune these configs according to TitanX in the end.
-	const int threads = 256;
+	const int threads = 128;
 	const int block = (n + threads - 1) / threads;
 
 	util::DeviceArray<float> temp_memory(nPixels * 3);
@@ -361,7 +448,7 @@ void GaussNewtonSolver::computeJacobian(
 		nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs,
 		nUnknowns, nResiduals,
 		nVerticesTimes3, nShapeCoeffsTotal, nExpressionCoeffsTotal, nAlbedoCoeffsTotal,
-		sparseWeight / nFeatures, denseWeight / face_bb.num_visible_pixels, glm::sqrt(regularizationWeight),
+		glm::sqrt(sparseWeight / nFeatures), glm::sqrt(denseWeight / face_bb.num_visible_pixels), glm::sqrt(regularizationWeight),
 
 		image, temp_memory.getPtr(),
 
@@ -390,18 +477,27 @@ void GaussNewtonSolver::computeJacobian(
 	cudaDeviceSynchronize();
 
 #ifdef TEST_TEXTURE
+	static cv::VideoWriter video_writer("../../out_debug.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 8, cv::Size(512, 512));
 	std::vector<float> temp_memory_host(nPixels * 3);
 	util::copy(temp_memory_host, temp_memory, temp_memory.getSize());
-	cv::Mat image_debug(cv::Size(face_bb.width, face_bb.height), CV_8UC3);
+	cv::Mat image_debug(cv::Size(512, 512), CV_8UC3);
 	for (int y = 0; y < image_debug.rows; y++)
 	{
 		for (int x = 0; x < image_debug.cols; x++)
 		{
-			auto idx = (x + y * face_bb.width) * 3;
-			// OpenCV expects it to be an BGRA image.
-			image_debug.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(temp_memory_host[idx + 2], temp_memory_host[idx + 1], temp_memory_host[idx]));
+			if (y < face_bb.height && x < face_bb.width)
+			{
+				auto idx = (x + y * face_bb.width) * 3;
+				// OpenCV expects it to be an BGRA image.
+				image_debug.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(temp_memory_host[idx + 2], temp_memory_host[idx + 1], temp_memory_host[idx]));
+			}
+			else
+			{
+				image_debug.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(0.0f, 0.0f, 0.0f));
+			}
 		}
 	}
+	//video_writer.write(image_debug);
 	cv::imwrite("../../dense_test.png", image_debug);
 #endif // TEST_TEXTURE
 }

@@ -95,7 +95,7 @@
     <ClInclude Include="..\src\application.h" />
     <ClInclude Include="..\src\gauss_newton_solver.h" />
     <ClInclude Include="..\src\prior_sparse_features.h" />
-    <ClInclude Include="..\src\gradient_util.h" />
+    <ClInclude Include="..\src\jacobian_util.h" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\src\face.cu" />

@@ -8,15 +8,15 @@
 //Default
 struct SolverParameters
 {
-	float sparse_weight_exponent = 2.0f;
-	float dense_weight_exponent = 2.7f;
+	float sparse_weight_exponent = 1.5f;
+	float dense_weight_exponent = 0.5f;
 	float regularisation_weight_exponent = -4.6f;
 
 	int num_gn_iterations = 5;
-	int num_pcg_iterations = 10;
+	int num_pcg_iterations = 5;
 
-	int num_shape_coefficients = 30;
-	int num_albedo_coefficients = 30;
+	int num_shape_coefficients = 80;
+	int num_albedo_coefficients = 80;
 	int num_expression_coefficients = 76;
 
 	const float kNearZero = 1.0e-8;		// interpretation of "zero"
@@ -104,7 +104,7 @@ private:
 	FaceBoundingBox computeFaceBoundingBox(const int imageWidth, const int imageHeight); 
 	void computeJacobiPreconditioner(int nUnknowns, int nResiduals, float* p_jacobian, float* p_preconditioner);
 
-	void solveUpdateCG(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
+	float solveUpdateCG(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
 	void solveUpdatePCG(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,

@@ -61,7 +61,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	jacobian_gpu.memset(0);
 	residuals_gpu.memset(0);
 
-	//Some parts of jacobians are constants. That's why thet are intialized here only once.
+	//Some parts of jacobians are constants. That's why they are intialized here only once.
 	//Do not touch them inside the for loops.
 	Eigen::Matrix<float, 3, 3> jacobian_local = Eigen::MatrixXf::Zero(3, 3);
 
@@ -124,10 +124,14 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		unmapRenderTargets(face);
 
 		//Apply step and update poses GPU
-		solveUpdateCG(m_cublas, nUnknowns, current_residuals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
+		auto error = solveUpdateCG(m_cublas, nUnknowns, current_residuals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
 		util::copy(result, result_gpu, nUnknowns);
 
 		updateParameters(result, projection, face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);
+
+		std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
+		std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
+		std::cout << "Iteration: " << iteration << " , Loss: " << glm::sqrt(error) << std::endl;
 	}
 }
 
@@ -236,7 +240,7 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 	//	std::cout << "PCG iters: " << i << std::endl; 
 }
 
-void GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
+float GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
 	util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS, const float alphaRHS)
 {
 	const float alpha = 1, beta = 0;
@@ -288,7 +292,8 @@ void GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int nU
 		cublasSscal(cublas, nUnknowns, &bk, p.getPtr(), 1);
 		cublasSaxpy(cublas, nUnknowns, &alpha, r.getPtr(), 1, p.getPtr(), 1);
 	}
-	//std::cout << "CG iters: " << i << std::endl;
+
+	return rTr;
 }
 
 void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::mat4& projection, Face& face,
