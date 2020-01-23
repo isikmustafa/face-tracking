@@ -58,15 +58,14 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	util::DeviceArray<uchar> frame_gpu = util::DeviceArray<uchar>(3 * nPixels);
 	util::copy(frame_gpu, processed_frame.data, 3 * nPixels);
 
-	jacobian_gpu.memset(0);
-	residuals_gpu.memset(0);
-
 	//Some parts of jacobians are constants. That's why they are intialized here only once.
 	//Do not touch them inside the for loops.
 	Eigen::Matrix<float, 3, 3> jacobian_local = Eigen::MatrixXf::Zero(3, 3);
 
 	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
 	{
+		jacobian_gpu.memset(0);
+		residuals_gpu.memset(0);
 		face.computeFace();
 		face.updateVertexBuffer();
 		face.draw();
@@ -129,9 +128,9 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 		updateParameters(result, projection, face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);
 
-		std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
+		/*std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
 		std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
-		std::cout << "Iteration: " << iteration << " , Loss: " << glm::sqrt(error) << std::endl;
+		std::cout << "Iteration: " << iteration << " , Loss: " << glm::sqrt(error) << std::endl;*/
 	}
 }
 
