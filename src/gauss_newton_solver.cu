@@ -169,11 +169,7 @@ __global__ void cuComputeJacobian(
 
 		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs, 3, 9) = wDense * albedo * bands;
 
-
-
-
-
-		//OTHER
+		//Pose
 		Eigen::Matrix<float, 1, 3> dlight_dnormal;
 		jacobian_util::computeDLightDNormal(dlight_dnormal, normal_glm, p_coefficients_sh);
 
@@ -229,18 +225,7 @@ __global__ void cuComputeJacobian(
 			v1_jacobian * expression_basis.block(3 * vertex_ids_sampled.y, 0, 3, nExpressionCoeffs) +
 			v2_jacobian * expression_basis.block(3 * vertex_ids_sampled.z, 0, 3, nExpressionCoeffs);
 
-
-
-
-
-
-
-
-
-
-
-
-
+		//Below is the derivative with respect to source image (frame_rgb)
 		//Pose
 		auto local_coord = barycentrics_sampled.x * current_face[vertex_ids_sampled.x] +
 			barycentrics_sampled.y * current_face[vertex_ids_sampled.y] +
