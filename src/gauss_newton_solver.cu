@@ -556,27 +556,19 @@ void GaussNewtonSolver::computeJacobian(
 #endif // TEST_TEXTURE
 }
 
-__global__ void cuComputeJacobiPreconditioner(const int nUnknowns, const int nResiduals, float* p_jacobian, float* p_preconditioner)
+__global__ void cuComputeJTJDiagonals(const int nUnknowns, const int nCurrentResiduals, const int nResiduals, float* jacobian, float* preconditioner)
 {
-	extern __shared__ float temp[];
-
+	int tid = threadIdx.x;
 	int col = blockIdx.x;
-	int row = threadIdx.x;
-	float v = p_jacobian[col * nResiduals + row];
-	temp[row] = v * v;
 
-	__syncthreads();
-
-	if (threadIdx.x == 0)
+	float sum = 0.0f;
+	for (int row = tid; row < nCurrentResiduals; row += blockDim.x)
 	{
-		float sum = 0;
-		for (int i = 0; i < nResiduals; i++)
-		{
-			sum += temp[i];
-		}
-		p_preconditioner[col] = 1.0f / (fmaxf(2.0f*sum, 1e-8f));
+		auto v = jacobian[col * nResiduals + row];
+		sum += v * v;
 	}
 
+	atomicAdd(&preconditioner[col], sum);
 }
 
 __global__ void cuElementwiseMultiplication(float* v1, float* v2, float* out)
@@ -585,10 +577,18 @@ __global__ void cuElementwiseMultiplication(float* v1, float* v2, float* out)
 	out[i] = v1[i] * v2[i];
 }
 
-void GaussNewtonSolver::computeJacobiPreconditioner(const int nUnknowns, const int nResiduals, float* p_jacobian, float* p_preconditioner)
+__global__ void cuOneOverElement(float* preconditioner)
 {
-	//TODO: split this up into proper blocks, once we have more that 1024 resiudals 
-	cuComputeJacobiPreconditioner << <nUnknowns, nResiduals, sizeof(float)*nResiduals >> > (nUnknowns, nResiduals, p_jacobian, p_preconditioner);
+	int i = util::getThreadIndex1D();
+
+	preconditioner[i] = 1.0f / (glm::max(preconditioner[i], 1.0e-4f));
+}
+
+void GaussNewtonSolver::computeJacobiPreconditioner(const int nUnknowns, const int nCurrentResiduals, const int nResiduals, float* jacobian, float* preconditioner)
+{
+	cuComputeJTJDiagonals << <nUnknowns, 128 >> > (nUnknowns, nCurrentResiduals, nResiduals, jacobian, preconditioner);
+	cudaDeviceSynchronize();
+	cuOneOverElement << <1, nUnknowns >> > (preconditioner);
 	cudaDeviceSynchronize();
 }
 

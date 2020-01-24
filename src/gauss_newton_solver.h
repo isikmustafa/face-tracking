@@ -102,12 +102,12 @@ private:
 
 	void elementwiseMultiplication(int nElements, float* v1, float* v2, float* out);
 	FaceBoundingBox computeFaceBoundingBox(const int imageWidth, const int imageHeight); 
-	void computeJacobiPreconditioner(int nUnknowns, int nResiduals, float* p_jacobian, float* p_preconditioner);
+	void computeJacobiPreconditioner(const int nUnknowns, const int nCurrentResiduals, const int nResiduals, float* jacobian, float* preconditioner);
 
 	float solveUpdateCG(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
-	void solveUpdatePCG(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
+	void solveUpdatePCG(const cublasHandle_t& cublas, int nUnknowns, int nCurrentResiduals, int nResiduals, util::DeviceArray<float>& jacobian,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
 	void solveUpdateLU(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,

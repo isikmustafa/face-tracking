@@ -82,7 +82,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		mapRenderTargets(face);
 		FaceBoundingBox face_bb = computeFaceBoundingBox(face.m_graphics_settings.texture_width, face.m_graphics_settings.texture_height);
 
-		int current_residuals = 2 * nFeatures + nFaceCoeffs + 3 * face_bb.width * face_bb.height;
+		int n_current_residuals = 2 * nFeatures + nFaceCoeffs + 3 * face_bb.width * face_bb.height;
 
 		//debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
 		util::copy(m_sh_coefficients_gpu, face.m_sh_coefficients, 9);
@@ -92,7 +92,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 			//shared memory
 			face_bb,
 			nFeatures, frameWidth, frameHeight,
-			nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nUnknowns, current_residuals,
+			nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nUnknowns, n_current_residuals,
 			face.m_number_of_vertices * 3,
 			face.m_shape_coefficients.size(),
 			face.m_expression_coefficients.size(),
@@ -123,7 +123,10 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		unmapRenderTargets(face);
 
 		//Apply step and update poses GPU
-		auto error = solveUpdateCG(m_cublas, nUnknowns, current_residuals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
+		auto solve_time = util::runKernelGetExecutionTime([&]() {
+			solveUpdatePCG(m_cublas, nUnknowns, n_current_residuals, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
+			});
+		std::cout << "Solve time: " << solve_time << std::endl;
 		util::copy(result, result_gpu, nUnknowns);
 
 		updateParameters(result, projection, face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);
@@ -172,23 +175,25 @@ void GaussNewtonSolver::solveUpdateLU(const cublasHandle_t& cublas, const int nU
 	*/
 }
 
-void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
+void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int nUnknowns, const int nCurrentResiduals, const int nResiduals, util::DeviceArray<float>& jacobian,
 	util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS, const float alphaRHS)
 {
 	const float alpha = 1, beta = 0;
 	x.memset(0);
+
 	auto r = util::DeviceArray<float>(nUnknowns);	//current residual
 	auto p = util::DeviceArray<float>(nUnknowns);	//gradient 
 	auto M = util::DeviceArray<float>(nUnknowns);	//preconditioner
+	M.memset(0);
 	auto z = util::DeviceArray<float>(nUnknowns);	//preconditioned residual
-	auto Jp = util::DeviceArray<float>(nResiduals);
+	auto Jp = util::DeviceArray<float>(nCurrentResiduals);
 	auto JTJp = util::DeviceArray<float>(nUnknowns);
 
-	//M=inv(2*diag(JTJ))
-	computeJacobiPreconditioner(nUnknowns, nResiduals, jacobian.getPtr(), M.getPtr());
+	//M=inv(diag(JTJ))
+	computeJacobiPreconditioner(nUnknowns, nCurrentResiduals, nResiduals, jacobian.getPtr(), M.getPtr());
 
-	//r = JTf;
-	cublasSgemv(cublas, CUBLAS_OP_T, nResiduals, nUnknowns, &alphaRHS, jacobian.getPtr(), nResiduals, residuals.getPtr(), 1, &beta, r.getPtr(), 1);
+	//r = -JTf;
+	cublasSgemv(cublas, CUBLAS_OP_T, nCurrentResiduals, nUnknowns, &alphaRHS, jacobian.getPtr(), nCurrentResiduals, residuals.getPtr(), 1, &beta, r.getPtr(), 1);
 
 	//z = Mr
 	elementwiseMultiplication(nUnknowns, M.getPtr(), r.getPtr(), z.getPtr());
@@ -204,8 +209,8 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 	for (; i < std::min(nUnknowns, m_params.num_pcg_iterations); ++i)
 	{
 		//apply JTJ
-		cublasSgemv(cublas, CUBLAS_OP_N, nResiduals, nUnknowns, &alphaLHS, jacobian.getPtr(), nResiduals, p.getPtr(), 1, &beta, Jp.getPtr(), 1);
-		cublasSgemv(cublas, CUBLAS_OP_T, nResiduals, nUnknowns, &alpha, jacobian.getPtr(), nResiduals, Jp.getPtr(), 1, &beta, JTJp.getPtr(), 1);
+		cublasSgemv(cublas, CUBLAS_OP_N, nCurrentResiduals, nUnknowns, &alphaLHS, jacobian.getPtr(), nCurrentResiduals, p.getPtr(), 1, &beta, Jp.getPtr(), 1);
+		cublasSgemv(cublas, CUBLAS_OP_T, nCurrentResiduals, nUnknowns, &alpha, jacobian.getPtr(), nCurrentResiduals, Jp.getPtr(), 1, &beta, JTJp.getPtr(), 1);
 
 		cublasSdot(cublas, nUnknowns, p.getPtr(), 1, JTJp.getPtr(), 1, &pTJTJp);
 
@@ -244,12 +249,15 @@ float GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int n
 {
 	const float alpha = 1, beta = 0;
 	x.memset(0);
-	//r = JTf;
+
 	auto r = util::DeviceArray<float>(nUnknowns);	//current residual
 	auto p = util::DeviceArray<float>(nUnknowns);	//gradient 
 	auto Jp = util::DeviceArray<float>(nResiduals);
 	auto JTJp = util::DeviceArray<float>(nUnknowns);
+
+	//r = -JTf;
 	cublasSgemv(cublas, CUBLAS_OP_T, nResiduals, nUnknowns, &alphaRHS, jacobian.getPtr(), nResiduals, residuals.getPtr(), 1, &beta, r.getPtr(), 1);
+
 	//p=r;
 	cublasScopy(cublas, nUnknowns, r.getPtr(), 1, p.getPtr(), 1);
 
