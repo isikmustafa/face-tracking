@@ -131,10 +131,9 @@ __global__ void cuComputeJacobian(
 
 		//Albedo
 		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) =
-			barycentrics_sampled.w * wDense * (
-				barycentrics_sampled.x * albedo_basis.block(3 * vertex_ids_sampled.x, 0, 3, nAlbedoCoeffs) +
-				barycentrics_sampled.y * albedo_basis.block(3 * vertex_ids_sampled.y, 0, 3, nAlbedoCoeffs) +
-				barycentrics_sampled.z * albedo_basis.block(3 * vertex_ids_sampled.z, 0, 3, nAlbedoCoeffs));
+			(barycentrics_sampled.w * wDense * barycentrics_sampled.x) * albedo_basis.block(3 * vertex_ids_sampled.x, 0, 3, nAlbedoCoeffs) +
+			(barycentrics_sampled.w * wDense * barycentrics_sampled.y) * albedo_basis.block(3 * vertex_ids_sampled.y, 0, 3, nAlbedoCoeffs) +
+			(barycentrics_sampled.w * wDense * barycentrics_sampled.z) * albedo_basis.block(3 * vertex_ids_sampled.z, 0, 3, nAlbedoCoeffs);
 
 		//SH
 		auto number_of_vertices = nVerticesTimes3 / 3;
@@ -297,12 +296,12 @@ __global__ void cuComputeJacobian(
 		auto jacobian_proj_world_local = jacobian_proj_world * jacobian_local * wDense;
 
 		//Derivative of local coordinates with respect to shape and expression parameters
-		jacobian.block(offset_rows + current_index * 3, 7, 3, nShapeCoeffs) =
+		jacobian.block(offset_rows + current_index * 3, 7, 3, nShapeCoeffs) +=
 			(jacobian_proj_world_local * barycentrics_sampled.x) * shape_basis.block(3 * vertex_ids_sampled.x, 0, 3, nShapeCoeffs) +
 			(jacobian_proj_world_local * barycentrics_sampled.y) * shape_basis.block(3 * vertex_ids_sampled.y, 0, 3, nShapeCoeffs) +
 			(jacobian_proj_world_local * barycentrics_sampled.z) * shape_basis.block(3 * vertex_ids_sampled.z, 0, 3, nShapeCoeffs);
 
-		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) =
+		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) +=
 			(jacobian_proj_world_local * barycentrics_sampled.x) * expression_basis.block(3 * vertex_ids_sampled.x, 0, 3, nExpressionCoeffs) +
 			(jacobian_proj_world_local * barycentrics_sampled.y) * expression_basis.block(3 * vertex_ids_sampled.y, 0, 3, nExpressionCoeffs) +
 			(jacobian_proj_world_local * barycentrics_sampled.z) * expression_basis.block(3 * vertex_ids_sampled.z, 0, 3, nExpressionCoeffs);
