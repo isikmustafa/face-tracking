@@ -45,6 +45,7 @@ Face::Face(const std::string& morphable_model_directory)
 
 		file >> tex_coords[i].x >> tex_coords[i].y;
 	}
+
 	for (int i = 0; i < number_of_faces; ++i)
 	{
 		file >> int_dummy;

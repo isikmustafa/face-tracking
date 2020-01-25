@@ -24,7 +24,7 @@ Application::Application()
 	, m_solver()
 	, m_tracker()
 	, m_menu(kGuiPosition, kGuiSize)
-	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
+	, m_projection(glm::perspectiveRH_NO(glm::radians(75.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
 {
 	//m_camera = cv::VideoCapture(0);
 	m_camera = cv::VideoCapture("./demo1.mp4");
@@ -75,7 +75,6 @@ void Application::run()
 
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
 		m_solver.solve(sparse_features, m_face, raw_frame, m_projection);
-		//m_solver.solve_CPU(sparse_features, m_face, m_projection);
 
 		m_face.computeFace();
 		m_face.updateVertexBuffer();
@@ -171,9 +170,8 @@ void Application::initMenuWidgets()
 
 		ImGui::SliderInt("Shape Parameters", &solver_parameters.num_shape_coefficients, 0, 160);
 		ImGui::SliderInt("Albedo Parameters", &solver_parameters.num_albedo_coefficients, 0, 160);
-		ImGui::SliderInt("SH Parameters", &solver_parameters.num_sh_coefficients, 0, 9);
-
 		ImGui::SliderInt("Expression Parameters", &solver_parameters.num_expression_coefficients, 0, 76);
+
 		ImGui::End();
 	};
 	m_menu.attach(std::move(opt_parameters));
