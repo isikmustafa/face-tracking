@@ -123,13 +123,10 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		unmapRenderTargets(face);
 
 		//Apply step and update poses GPU
-		auto solve_time = util::runKernelGetExecutionTime([&]() {
-			solveUpdatePCG(m_cublas, nUnknowns, n_current_residuals, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
-			});
-		std::cout << "Solve time: " << solve_time << std::endl;
+		solveUpdatePCG(m_cublas, nUnknowns, n_current_residuals, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
 		util::copy(result, result_gpu, nUnknowns);
 
-		updateParameters(result, projection, face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);
+		updateParameters(result, projection, frame.cols / static_cast<float>(frame.rows), face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);
 
 		/*std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
 		std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
@@ -303,10 +300,11 @@ float GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int n
 	return rTr;
 }
 
-void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::mat4& projection, Face& face,
+void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::mat4& projection, float aspect_ratio, Face& face,
 	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs)
 {
 	projection[0][0] += result[0];
+	projection[1][1] = projection[0][0] * aspect_ratio;
 
 	face.m_rotation_coefficients.x += result[1];
 	face.m_rotation_coefficients.y += result[2];
@@ -319,28 +317,36 @@ void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::
 #pragma omp parallel num_threads(4)
 	{
 #pragma omp single
-		for (int i = 0; i < nShapeCoeffs; ++i)
 		{
-			face.m_shape_coefficients[i] += result[7 + i];
+			for (int i = 0; i < nShapeCoeffs; ++i)
+			{
+				face.m_shape_coefficients[i] += result[7 + i];
+			}
 		}
 
 #pragma omp single
-		for (int i = 0; i < nExpressionCoeffs; ++i)
 		{
-			auto c = face.m_expression_coefficients[i] + result[7 + nShapeCoeffs + i];
-			face.m_expression_coefficients[i] = glm::clamp(c, 0.0f, 1.0f);
+			for (int i = 0; i < nExpressionCoeffs; ++i)
+			{
+				auto c = face.m_expression_coefficients[i] + result[7 + nShapeCoeffs + i];
+				face.m_expression_coefficients[i] = glm::clamp(c, -1.0f, 1.0f);
+			}
 		}
 
 #pragma omp single
-		for (int i = 0; i < nAlbedoCoeffs; ++i)
 		{
-			face.m_albedo_coefficients[i] += result[7 + nShapeCoeffs + nExpressionCoeffs + i];
+			for (int i = 0; i < nAlbedoCoeffs; ++i)
+			{
+				face.m_albedo_coefficients[i] += result[7 + nShapeCoeffs + nExpressionCoeffs + i];
+			}
 		}
 
 #pragma omp single
-		for (int i = 0; i < 9; ++i)
 		{
-			face.m_sh_coefficients[i] += result[7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs + i];
+			for (int i = 0; i < 9; ++i)
+			{
+				face.m_sh_coefficients[i] += result[7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs + i];
+			}
 		}
 	}
 }

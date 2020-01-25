@@ -24,11 +24,10 @@ Application::Application()
 	, m_solver()
 	, m_tracker()
 	, m_menu(kGuiPosition, kGuiSize)
-	, m_projection(glm::perspectiveRH_NO(glm::radians(75.0f), static_cast<float>(kScreenWidth) / kScreenHeight, 0.01f, 10.0f))
-{
-	//m_camera = cv::VideoCapture(0);
-	m_camera = cv::VideoCapture("./demo1.mp4");
-}
+	//, m_camera(cv::VideoCapture(0))
+	, m_camera(cv::VideoCapture("./demo1.mp4"))
+	, m_projection(glm::perspectiveRH_NO(glm::radians(75.0f), static_cast<float>(m_camera.get(3) / m_camera.get(4)), 0.01f, 10.0f))
+{}
 
 Application::~Application()
 {
@@ -133,11 +132,11 @@ void Application::initMenuWidgets()
 	auto expression_parameters_gui = [&expression_coefficients]()
 	{
 		ImGui::CollapsingHeader("Expression Parameters", ImGuiTreeNodeFlags_DefaultOpen);
-		ImGui::SliderFloat("Expression1", &expression_coefficients[0], 0.0f, 1.0f);
-		ImGui::SliderFloat("Expression2", &expression_coefficients[1], 0.0f, 1.0f);
-		ImGui::SliderFloat("Expression3", &expression_coefficients[2], 0.0f, 1.0f);
-		ImGui::SliderFloat("Expression4", &expression_coefficients[3], 0.0f, 1.0f);
-		ImGui::SliderFloat("Expression5", &expression_coefficients[4], 0.0f, 1.0f);
+		ImGui::SliderFloat("Expression1", &expression_coefficients[0], -1.0f, 1.0f);
+		ImGui::SliderFloat("Expression2", &expression_coefficients[1], -1.0f, 1.0f);
+		ImGui::SliderFloat("Expression3", &expression_coefficients[2], -1.0f, 1.0f);
+		ImGui::SliderFloat("Expression4", &expression_coefficients[3], -1.0f, 1.0f);
+		ImGui::SliderFloat("Expression5", &expression_coefficients[4], -1.0f, 1.0f);
 	};
 	m_menu.attach(std::move(expression_parameters_gui));
 
@@ -145,15 +144,15 @@ void Application::initMenuWidgets()
 	auto sh_parameters_gui = [&sh_coefficients]()
 	{
 		ImGui::CollapsingHeader("Spherical Harmonics Parameters", ImGuiTreeNodeFlags_DefaultOpen);
-		ImGui::SliderFloat("Ambient", &sh_coefficients[0], -1.0f, 1.0f);
-		ImGui::SliderFloat("y", &sh_coefficients[1], -1.0f, 1.0f);
-		ImGui::SliderFloat("z", &sh_coefficients[2], -1.0f, 1.0f);
-		ImGui::SliderFloat("x", &sh_coefficients[3], -1.0f, 1.0f);
-		ImGui::SliderFloat("xy", &sh_coefficients[4], -1.0f, 1.0f);
-		ImGui::SliderFloat("yz", &sh_coefficients[5], -1.0f, 1.0f);
-		ImGui::SliderFloat("3z2 - 1", &sh_coefficients[6], -1.0f, 1.0f);
-		ImGui::SliderFloat("xz", &sh_coefficients[7], -1.0f, 1.0f);
-		ImGui::SliderFloat("x2-y2", &sh_coefficients[8], -1.0f, 1.0f);
+		ImGui::SliderFloat("Ambient", &sh_coefficients[0], -5.0f, 5.0f);
+		ImGui::SliderFloat("y", &sh_coefficients[1], -5.0f, 5.0f);
+		ImGui::SliderFloat("z", &sh_coefficients[2], -5.0f, 5.0f);
+		ImGui::SliderFloat("x", &sh_coefficients[3], -5.0f, 5.0f);
+		ImGui::SliderFloat("xy", &sh_coefficients[4], -5.0f, 5.0f);
+		ImGui::SliderFloat("yz", &sh_coefficients[5], -5.0f, 5.0f);
+		ImGui::SliderFloat("3z2 - 1", &sh_coefficients[6], -5.0f, 5.0f);
+		ImGui::SliderFloat("xz", &sh_coefficients[7], -5.0f, 5.0f);
+		ImGui::SliderFloat("x2-y2", &sh_coefficients[8], -5.0f, 5.0f);
 	};
 	m_menu.attach(std::move(sh_parameters_gui));
 

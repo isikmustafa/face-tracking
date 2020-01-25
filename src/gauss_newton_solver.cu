@@ -267,7 +267,7 @@ __global__ void cuComputeJacobian(
 		//Jacobian for intrinsics
 		Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
 		jacobian_intrinsics(0, 0) = world_coord.x;
-		//jacobian.block<3, 1>(offset_rows + current_index * 3, 0) = jacobian_uv * jacobian_proj * jacobian_intrinsics * wDense;
+		jacobian.block<3, 1>(offset_rows + current_index * 3, 0) = jacobian_uv * jacobian_proj * jacobian_intrinsics * wDense;
 
 		//Derivative of world coordinates with respect to rotation coefficients
 		auto dx = drx * local_coord;
@@ -411,7 +411,7 @@ __global__ void cuComputeJacobian(
 
 	auto jacobian_expression = jacobian_proj_world_local * expression_basis.block(3 * vertex_id, 0, 3, nExpressionCoeffs);
 	jacobian.block(i * 2, 7 + nShapeCoeffs, 2, nExpressionCoeffs) = jacobian_expression;
-		}
+}
 
 __global__ void cuComputeVisiblePixelsAndBB(cudaTextureObject_t texture, FaceBoundingBox* face_bb, int width, int height)
 {
@@ -532,7 +532,7 @@ void GaussNewtonSolver::computeJacobian(
 		p_jacobian, p_residuals
 		);
 		});
-	std::cout << "Jacobian kernel time: " << time << std::endl;
+	//std::cout << "Jacobian kernel time: " << time << std::endl;
 
 
 	cudaDeviceSynchronize();
