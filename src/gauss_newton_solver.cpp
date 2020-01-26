@@ -128,9 +128,11 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 
 		updateParameters(result, projection, frame.cols / static_cast<float>(frame.rows), face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);
 
-		/*std::cout << "Aspect Ratio: " << projection[1][1] / projection[0][0] << std::endl;
+		std::vector<float> residuals_loss_test(n_current_residuals);
+		util::copy(residuals_loss_test, residuals_gpu, n_current_residuals);
+		Eigen::Map<Eigen::VectorXf> residuals_loss_test_eigen(residuals_loss_test.data(), n_current_residuals);
 		std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
-		std::cout << "Iteration: " << iteration << " , Loss: " << glm::sqrt(error) << std::endl;*/
+		std::cout << "Iteration: " << iteration << " , Loss: " << glm::sqrt(residuals_loss_test_eigen.dot(residuals_loss_test_eigen)) << std::endl;
 	}
 }
 
@@ -241,7 +243,7 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 	//	std::cout << "PCG iters: " << i << std::endl; 
 }
 
-float GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
+void GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int nUnknowns, const int nResiduals, util::DeviceArray<float>& jacobian,
 	util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS, const float alphaRHS)
 {
 	const float alpha = 1, beta = 0;
@@ -296,8 +298,6 @@ float GaussNewtonSolver::solveUpdateCG(const cublasHandle_t& cublas, const int n
 		cublasSscal(cublas, nUnknowns, &bk, p.getPtr(), 1);
 		cublasSaxpy(cublas, nUnknowns, &alpha, r.getPtr(), 1, p.getPtr(), 1);
 	}
-
-	return rTr;
 }
 
 void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::mat4& projection, float aspect_ratio, Face& face,

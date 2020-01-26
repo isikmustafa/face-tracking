@@ -18,7 +18,7 @@ __global__ void cuComputeJacobian(
 	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
 	const int nUnknowns, const int nResiduals,
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
-	const float wSparse, const float wDense, const float wReg,
+	const float wSparse, float wDense, const float wReg,
 
 	uchar* image, float* debug_frame,
 
@@ -127,6 +127,8 @@ __global__ void cuComputeJacobian(
 		frame_rgb.z() = image[background_index + 2] / 255.0f;
 
 		Eigen::Vector3f residual = face_rgb - frame_rgb;
+		wDense /= glm::max(glm::sqrt(residual.norm()), 1.0e-8f); //IRLS with L1 norm.
+
 		residuals.block(offset_rows + current_index * 3, 0, 3, 1) = residual * wDense;
 
 		//Albedo
