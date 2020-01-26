@@ -18,6 +18,11 @@ float computeSH(vec3 dir);
 
 void main()
 {
+	if (frag.albedo.y > 1.0f)
+	{
+		discard;
+	}
+
 	float light = computeSH(normalize(frag.normal));
 	fragment_color = vec4(light * frag.albedo, 1.0f);
 	barycentrics = vec4(frag.barycentrics, light);

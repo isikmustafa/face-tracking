@@ -329,7 +329,7 @@ void GaussNewtonSolver::updateParameters(const std::vector<float>& result, glm::
 			for (int i = 0; i < nExpressionCoeffs; ++i)
 			{
 				auto c = face.m_expression_coefficients[i] + result[7 + nShapeCoeffs + i];
-				face.m_expression_coefficients[i] = glm::clamp(c, -1.0f, 1.0f);
+				face.m_expression_coefficients[i] = glm::clamp(c, -0.5f, 0.5f);
 			}
 		}
 
