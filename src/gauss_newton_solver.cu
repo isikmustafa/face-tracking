@@ -556,7 +556,7 @@ void GaussNewtonSolver::computeJacobian(
 #endif // TEST_TEXTURE
 }
 
-__global__ void cuComputeJTJDiagonals(const int nUnknowns, const int nCurrentResiduals, const int nResiduals, float* jacobian, float* preconditioner)
+__global__ void cuComputeJTJDiagonals(const int nUnknowns, const int nCurrentResiduals, const int nResiduals, float* jacobian, float* diagJTJ)
 {
 	int tid = threadIdx.x;
 	int col = blockIdx.x;
@@ -568,7 +568,7 @@ __global__ void cuComputeJTJDiagonals(const int nUnknowns, const int nCurrentRes
 		sum += v * v;
 	}
 
-	atomicAdd(&preconditioner[col], sum);
+	atomicAdd(&diagJTJ[col], sum);
 }
 
 __global__ void cuElementwiseMultiplication(float* v1, float* v2, float* out)
@@ -577,18 +577,22 @@ __global__ void cuElementwiseMultiplication(float* v1, float* v2, float* out)
 	out[i] = v1[i] * v2[i];
 }
 
-__global__ void cuOneOverElement(float* preconditioner)
+__global__ void cuOneOverElement(float* diagJTJ, float* invJTJ)
 {
 	int i = util::getThreadIndex1D();
 
-	preconditioner[i] = 1.0f / (glm::max(preconditioner[i], 1.0e-4f));
+	invJTJ[i] = 1.0f / (glm::max(diagJTJ[i], 1.0e-4f));
 }
 
-void GaussNewtonSolver::computeJacobiPreconditioner(const int nUnknowns, const int nCurrentResiduals, const int nResiduals, float* jacobian, float* preconditioner)
+void GaussNewtonSolver::computeDiagJTJ(const int nUnknowns, const int nCurrentResiduals, const int nResiduals, float* jacobian, float* diagJTJ)
 {
-	cuComputeJTJDiagonals << <nUnknowns, 128 >> > (nUnknowns, nCurrentResiduals, nResiduals, jacobian, preconditioner);
+	cuComputeJTJDiagonals << <nUnknowns, 128 >> > (nUnknowns, nCurrentResiduals, nResiduals, jacobian, diagJTJ);
 	cudaDeviceSynchronize();
-	cuOneOverElement << <1, nUnknowns >> > (preconditioner);
+}
+
+void GaussNewtonSolver::computeInverseJTJ(const int nUnknowns, float* diagJTJ, float* invJTJ)
+{
+	cuOneOverElement << <1, nUnknowns >> > (diagJTJ, invJTJ);
 	cudaDeviceSynchronize();
 }
 

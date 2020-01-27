@@ -125,7 +125,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		//Apply step and update poses GPU
 		auto solve_time = util::runKernelGetExecutionTime([&]() {
 			solveUpdatePCG(m_cublas, nUnknowns, n_current_residuals, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
-			});
+		});
 		std::cout << "Solve time: " << solve_time << std::endl;
 		util::copy(result, result_gpu, nUnknowns);
 
@@ -175,25 +175,33 @@ void GaussNewtonSolver::solveUpdateLU(const cublasHandle_t& cublas, const int nU
 	*/
 }
 
-void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int nUnknowns, const int nCurrentResiduals, const int nResiduals, util::DeviceArray<float>& jacobian,
+/**/
+void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int nUnknowns, const int nCurrentResiduals, const int nResiduals, util::DeviceArray<float>& J,
 	util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS, const float alphaRHS)
 {
-	const float alpha = 1, beta = 0;
+	const float alpha = 1.f, beta = 0;
 	x.memset(0);
 
 	auto r = util::DeviceArray<float>(nUnknowns);	//current residual
 	auto p = util::DeviceArray<float>(nUnknowns);	//gradient 
 	auto M = util::DeviceArray<float>(nUnknowns);	//preconditioner
-	M.memset(0);
+
 	auto z = util::DeviceArray<float>(nUnknowns);	//preconditioned residual
 	auto Jp = util::DeviceArray<float>(nCurrentResiduals);
 	auto JTJp = util::DeviceArray<float>(nUnknowns);
 
-	//M=inv(diag(JTJ))
-	computeJacobiPreconditioner(nUnknowns, nCurrentResiduals, nResiduals, jacobian.getPtr(), M.getPtr());
+	auto diagJTJ = util::DeviceArray<float>(nUnknowns);
+	auto diagJTJp = util::DeviceArray<float>(nUnknowns);
+	
+	M.memset(0);
+	diagJTJ.memset(0);
+	diagJTJp.memset(0);
+
+	computeDiagJTJ(nUnknowns, nCurrentResiduals, nResiduals, J.getPtr(), diagJTJ.getPtr());
+	computeInverseJTJ(nUnknowns, diagJTJ.getPtr(), M.getPtr());
 
 	//r = -JTf;
-	cublasSgemv(cublas, CUBLAS_OP_T, nCurrentResiduals, nUnknowns, &alphaRHS, jacobian.getPtr(), nCurrentResiduals, residuals.getPtr(), 1, &beta, r.getPtr(), 1);
+	cublasSgemv(cublas, CUBLAS_OP_T, nCurrentResiduals, nUnknowns, &alphaRHS, J.getPtr(), nCurrentResiduals, residuals.getPtr(), 1, &beta, r.getPtr(), 1);
 
 	//z = Mr
 	elementwiseMultiplication(nUnknowns, M.getPtr(), r.getPtr(), z.getPtr());
@@ -201,16 +209,23 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 	//p=z;
 	cublasScopy(cublas, nUnknowns, z.getPtr(), 1, p.getPtr(), 1);
 
-	float zTr_old = 0, zTr = 0;
+	float lambda = 0.0000001f; // TODO adaptive lambda parameter
+	float zTr_old = 0.f, zTr = 0.f;
 	float pTJTJp;
 	//zTr
 	cublasSdot(cublas, nUnknowns, z.getPtr(), 1, r.getPtr(), 1, &zTr_old);
 	int i = 0;
 	for (; i < std::min(nUnknowns, m_params.num_pcg_iterations); ++i)
 	{
-		//apply JTJ
-		cublasSgemv(cublas, CUBLAS_OP_N, nCurrentResiduals, nUnknowns, &alphaLHS, jacobian.getPtr(), nCurrentResiduals, p.getPtr(), 1, &beta, Jp.getPtr(), 1);
-		cublasSgemv(cublas, CUBLAS_OP_T, nCurrentResiduals, nUnknowns, &alpha, jacobian.getPtr(), nCurrentResiduals, Jp.getPtr(), 1, &beta, JTJp.getPtr(), 1);
+		//apply JTJp
+		cublasSgemv(cublas, CUBLAS_OP_N, nCurrentResiduals, nUnknowns, &alphaLHS, J.getPtr(), nCurrentResiduals, p.getPtr(), 1, &beta, Jp.getPtr(), 1);
+		cublasSgemv(cublas, CUBLAS_OP_T, nCurrentResiduals, nUnknowns, &alpha, J.getPtr(), nCurrentResiduals, Jp.getPtr(), 1, &beta, JTJp.getPtr(), 1);
+
+		//apply diag(JTJ)p
+		elementwiseMultiplication(nUnknowns, diagJTJ.getPtr(), p.getPtr(), diagJTJp.getPtr());
+
+		// add (lambda*diagJTJp + JTJp)
+		cublasSaxpy(cublas, nUnknowns, &lambda, diagJTJp.getPtr(), 1, JTJp.getPtr(), 1);
 
 		cublasSdot(cublas, nUnknowns, p.getPtr(), 1, JTJp.getPtr(), 1, &pTJTJp);
 

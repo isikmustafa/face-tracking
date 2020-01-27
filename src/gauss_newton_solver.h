@@ -25,13 +25,13 @@ struct SolverParameters
 
 struct FaceBoundingBox
 {
-	unsigned int num_visible_pixels = 0; 
+	unsigned int num_visible_pixels = 0;
 	unsigned int x_min = UINT_MAX;
 	unsigned int y_min = UINT_MAX;
 	unsigned int x_max = 0;
 	unsigned int y_max = 0;
-	unsigned int width = 0; 
-	unsigned int height = 0; 
+	unsigned int width = 0;
+	unsigned int height = 0;
 };
 
 ////Debug
@@ -88,26 +88,28 @@ private:
 		//device memory input
 		int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features,
 
-		float* p_shape_basis, 
-		float* p_expression_basis, 
-		float* p_albedo_basis, 
-		
-		float* p_coefficients_shape, 
+		float* p_shape_basis,
+		float* p_expression_basis,
+		float* p_albedo_basis,
+
+		float* p_coefficients_shape,
 		float* p_coefficients_expression,
 		float* p_coefficients_albedo,
-		float* p_coefficients_sh, 
+		float* p_coefficients_sh,
 
 		//device memory output
 		float* p_jacobian, float* p_residuals) const;
 
 	void elementwiseMultiplication(int nElements, float* v1, float* v2, float* out);
-	FaceBoundingBox computeFaceBoundingBox(const int imageWidth, const int imageHeight); 
-	void computeJacobiPreconditioner(const int nUnknowns, const int nCurrentResiduals, const int nResiduals, float* jacobian, float* preconditioner);
+	FaceBoundingBox computeFaceBoundingBox(const int imageWidth, const int imageHeight);
+
+	void computeInverseJTJ(const int nUnknowns, float* JTJ, float* invJTJ);
+	void computeDiagJTJ(const int nUnknowns, const int nCurrentResiduals, const int nResiduals, float* jacobian, float* diagJTJ);
 
 	float solveUpdateCG(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
-	void solveUpdatePCG(const cublasHandle_t& cublas, int nUnknowns, int nCurrentResiduals, int nResiduals, util::DeviceArray<float>& jacobian,
+	void solveUpdatePCG(const cublasHandle_t& cublas, int nUnknowns, int nCurrentResiduals, int nResiduals, util::DeviceArray<float>& J,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
 	void solveUpdateLU(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
