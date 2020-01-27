@@ -1,6 +1,8 @@
 #pragma once
 
 #include "face.h"
+#include "pyramid.h"
+
 #include <Eigen/Dense>
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -57,7 +59,7 @@ public:
 	GaussNewtonSolver();
 	~GaussNewtonSolver();
 
-	void solve(const std::vector<glm::vec2>& sparse_features, Face& face, cv::Mat& frame, glm::mat4& projection);
+	void solve(const std::vector<glm::vec2>& sparse_features, Face& face, cv::Mat& frame, glm::mat4& projection, const Pyramid& pyramid);
 
 	SolverParameters& getSolverParameters() { return m_params; }
 	const SolverParameters& getSolverParameters() const { return m_params; }

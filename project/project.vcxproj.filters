@@ -9,12 +9,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\src\shader\window.vert">
-      <Filter>shader</Filter>
-    </None>
-    <None Include="..\src\shader\window.frag">
-      <Filter>shader</Filter>
-    </None>
     <None Include="..\src\shader\face.frag">
       <Filter>shader</Filter>
     </None>
@@ -60,6 +54,7 @@
     <ClCompile Include="..\src\application.cpp" />
     <ClCompile Include="..\src\gauss_newton_solver.cpp" />
     <ClCompile Include="..\src\prior_sparse_features.cpp" />
+    <ClCompile Include="..\src\pyramid.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\3rd\imgui\imgui.h">
@@ -96,6 +91,7 @@
     <ClInclude Include="..\src\gauss_newton_solver.h" />
     <ClInclude Include="..\src\prior_sparse_features.h" />
     <ClInclude Include="..\src\jacobian_util.h" />
+    <ClInclude Include="..\src\pyramid.h" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\src\face.cu" />

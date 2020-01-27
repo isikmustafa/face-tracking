@@ -20,12 +20,14 @@ GaussNewtonSolver::~GaussNewtonSolver()
 	destroyTextures();
 }
 
-void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Face& face, cv::Mat& frame, glm::mat4& projection)
+void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Face& face, cv::Mat& frame, glm::mat4& projection, const Pyramid& pyramid)
 {
 	if (sparse_features.empty()) //no tracking -> cublas doesnt like a getting matrix/vector of size 0
 	{
 		return;
 	}
+
+	pyramid.setGraphicsSettings(2, face.getGraphicsSettings()); //Use lowest for just now.
 
 	const int frameWidth = face.m_graphics_settings.texture_width;
 	const int frameHeight = face.m_graphics_settings.texture_height;

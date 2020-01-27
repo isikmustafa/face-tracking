@@ -260,12 +260,12 @@ void Face::draw() const
 		throw std::runtime_error("Error: Draw is called while rts is mapped!");
 	}
 
-	// Render to our framebuffer
+	// Render to face framebuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, m_graphics_settings.framebuffer);
-
 	glViewport(0, 0, m_graphics_settings.texture_width, m_graphics_settings.texture_height);
 	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
 
 	m_graphics_settings.shader->use();
 	m_graphics_settings.shader->setMat4("model", computeModelMatrix());
@@ -274,9 +274,6 @@ void Face::draw() const
 	glBindVertexArray(m_vertex_array);
 	glDrawElements(GL_TRIANGLES, m_number_of_indices, GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glViewport(0, 0, m_graphics_settings.screen_width, m_graphics_settings.screen_height);
 }
 
 //Only load .matrix file with _modified suffix.

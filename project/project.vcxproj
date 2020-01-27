@@ -24,6 +24,7 @@
     <ClCompile Include="..\src\glsl_program.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\menu.cpp" />
+    <ClCompile Include="..\src\pyramid.cpp" />
     <ClCompile Include="..\src\quad.cpp" />
     <ClCompile Include="..\src\tracker.cpp" />
     <ClCompile Include="..\src\window.cpp" />
@@ -45,6 +46,7 @@
     <ClInclude Include="..\src\gauss_newton_solver.h" />
     <ClInclude Include="..\src\glsl_program.h" />
     <ClInclude Include="..\src\menu.h" />
+    <ClInclude Include="..\src\pyramid.h" />
     <ClInclude Include="..\src\quad.h" />
     <ClInclude Include="..\src\tracker.h" />
     <ClInclude Include="..\src\util.h" />
@@ -56,8 +58,6 @@
     <None Include="..\src\shader\face.vert" />
     <None Include="..\src\shader\quad.frag" />
     <None Include="..\src\shader\quad.vert" />
-    <None Include="..\src\shader\window.frag" />
-    <None Include="..\src\shader\window.vert" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\src\face.cu" />
