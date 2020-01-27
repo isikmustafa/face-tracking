@@ -243,13 +243,12 @@ __global__ void cuComputeJacobian(
 		int background_index_right = 3 * (xp + 1 + yp * imageWidth);
 		int background_index_up = 3 * (xp + (yp - 1) * imageWidth);
 		int background_index_down = 3 * (xp + (yp + 1) * imageWidth);
-		jacobian_uv(0, 0) = (image[background_index_right] / 255.0f - image[background_index_left] / 255.0f) * 0.25f * imageWidth;
-		jacobian_uv(1, 0) = (image[background_index_right + 1] / 255.0f - image[background_index_left + 1] / 255.0f) *  0.25f * imageWidth;
-		jacobian_uv(2, 0) = (image[background_index_right + 2] / 255.0f - image[background_index_left + 2] / 255.0f) *  0.25f * imageWidth;
-		jacobian_uv(0, 1) = -(image[background_index_down] / 255.0f - image[background_index_up] / 255.0f) *  0.25f  * imageHeight;
-		jacobian_uv(1, 1) = -(image[background_index_down + 1] / 255.0f - image[background_index_up + 1] / 255.0f) *  0.25f  * imageHeight;
-		jacobian_uv(2, 1) = -(image[background_index_down + 2] / 255.0f - image[background_index_up + 2] / 255.0f) *  0.25f  * imageHeight;
-		jacobian_uv = -jacobian_uv;
+		jacobian_uv(0, 0) = -(image[background_index_right] / 255.0f - image[background_index_left] / 255.0f) * 0.25f * imageWidth;
+		jacobian_uv(1, 0) = -(image[background_index_right + 1] / 255.0f - image[background_index_left + 1] / 255.0f) *  0.25f * imageWidth;
+		jacobian_uv(2, 0) = -(image[background_index_right + 2] / 255.0f - image[background_index_left + 2] / 255.0f) *  0.25f * imageWidth;
+		jacobian_uv(0, 1) = (image[background_index_down] / 255.0f - image[background_index_up] / 255.0f) *  0.25f  * imageHeight;
+		jacobian_uv(1, 1) = (image[background_index_down + 1] / 255.0f - image[background_index_up + 1] / 255.0f) *  0.25f  * imageHeight;
+		jacobian_uv(2, 1) = (image[background_index_down + 2] / 255.0f - image[background_index_up + 2] / 255.0f) *  0.25f  * imageHeight;
 
 		//Jacobian for homogenization (AKA division by w)
 		Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
