@@ -27,114 +27,120 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 		return;
 	}
 
-	pyramid.setGraphicsSettings(2, face.getGraphicsSettings()); //Use lowest for just now.
+	auto number_of_levels = pyramid.getNumberOfLevels();
+	if (sizeof(m_params.num_gn_iterations) / sizeof(int) != number_of_levels)
+	{
+		throw std::runtime_error("Please specify number of GN iteration per pyramid level!");
+	}
 
-	const int frameWidth = face.m_graphics_settings.texture_width;
-	const int frameHeight = face.m_graphics_settings.texture_height;
-	const int nPixels = frameWidth * frameHeight;
 	const int nFeatures = sparse_features.size();
 	const int nShapeCoeffs = m_params.num_shape_coefficients;
 	const int nExpressionCoeffs = m_params.num_expression_coefficients;
 	const int nAlbedoCoeffs = m_params.num_albedo_coefficients;
 	const int nFaceCoeffs = nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs;
-	const int nResiduals = 2 * nFeatures + 3 * nPixels + nFaceCoeffs; //nFaceCoeffs -> regularizer
 	const int nUnknowns = 7 + nFaceCoeffs + 9; //3+3+1 = 7 DoF for rotation, translation and intrinsics. Plus nFaceCoeffs for face parameters and 9 for lighting.
 
 	const float wSparse = std::powf(10, m_params.sparse_weight_exponent);
 	const float wDense = std::powf(10, m_params.dense_weight_exponent);
 	const float wReg = std::powf(10, m_params.regularisation_weight_exponent);
 
-	const auto& prior_local_ids = PriorSparseFeatures::get().getPriorIds();
-
-	//TODO: Allocate all of the objects below once. So, move them out of here.
-	auto jacobian_gpu = util::DeviceArray<float>(nResiduals * nUnknowns);
-	auto residuals_gpu = util::DeviceArray<float>(nResiduals);
-	auto result_gpu = util::DeviceArray<float>(nUnknowns);
-	std::vector<float> result(nUnknowns);
-	auto ids_gpu = util::DeviceArray<int>(prior_local_ids);
-	auto key_pts_gpu = util::DeviceArray<glm::vec2>(sparse_features);
-
-	cv::Mat processed_frame;
-	cv::resize(frame, processed_frame, cv::Size(frameWidth, frameHeight));
-	cv::cvtColor(processed_frame, processed_frame, cv::COLOR_BGR2RGB);
-	util::DeviceArray<uchar> frame_gpu = util::DeviceArray<uchar>(3 * nPixels);
-	util::copy(frame_gpu, processed_frame.data, 3 * nPixels);
-
-	//Some parts of jacobians are constants. That's why they are intialized here only once.
-	//Do not touch them inside the for loops.
-	Eigen::Matrix<float, 3, 3> jacobian_local = Eigen::MatrixXf::Zero(3, 3);
-
-	for (int iteration = 0; iteration < m_params.num_gn_iterations; ++iteration)
+	for (int pyramid_level = number_of_levels - 1; pyramid_level >= 0; pyramid_level--)
 	{
-		jacobian_gpu.memset(0);
-		residuals_gpu.memset(0);
-		face.computeFace();
-		face.updateVertexBuffer();
-		face.draw();
+		pyramid.setGraphicsSettings(pyramid_level, face.getGraphicsSettings());
 
-		auto face_pose = face.computeModelMatrix();
-		jacobian_local <<
-			face_pose[0][0], face_pose[1][0], face_pose[2][0],
-			face_pose[0][1], face_pose[1][1], face_pose[2][1],
-			face_pose[0][2], face_pose[1][2], face_pose[2][2];
+		const int frameWidth = face.m_graphics_settings.texture_width;
+		const int frameHeight = face.m_graphics_settings.texture_height;
+		const int nPixels = frameWidth * frameHeight;
+		const int nResiduals = 2 * nFeatures + 3 * nPixels + nFaceCoeffs; //nFaceCoeffs -> regularizer
 
-		glm::mat3 drx, dry, drz;
-		face.computeRotationDerivatives(drx, dry, drz);
+		const auto& prior_local_ids = PriorSparseFeatures::get().getPriorIds();
 
-		mapRenderTargets(face);
-		FaceBoundingBox face_bb = computeFaceBoundingBox(face.m_graphics_settings.texture_width, face.m_graphics_settings.texture_height);
+		//TODO: Allocate all of the objects below once. So, move them out of here.
+		auto jacobian_gpu = util::DeviceArray<float>(nResiduals * nUnknowns);
+		auto residuals_gpu = util::DeviceArray<float>(nResiduals);
+		auto result_gpu = util::DeviceArray<float>(nUnknowns);
+		std::vector<float> result(nUnknowns);
+		auto ids_gpu = util::DeviceArray<int>(prior_local_ids);
+		auto key_pts_gpu = util::DeviceArray<glm::vec2>(sparse_features);
 
-		int n_current_residuals = 2 * nFeatures + nFaceCoeffs + 3 * face_bb.width * face_bb.height;
+		cv::Mat processed_frame;
+		cv::resize(frame, processed_frame, cv::Size(frameWidth, frameHeight));
+		cv::cvtColor(processed_frame, processed_frame, cv::COLOR_BGR2RGB);
+		util::DeviceArray<uchar> frame_gpu = util::DeviceArray<uchar>(3 * nPixels);
+		util::copy(frame_gpu, processed_frame.data, 3 * nPixels);
 
-		//debugFrameBufferTextures(face, frame_gpu.getPtr(), "..//..//rgb.png", "..//..//rgb-deferred.png");
-		util::copy(m_sh_coefficients_gpu, face.m_sh_coefficients, 9);
+		for (int iteration = 0; iteration < m_params.num_gn_iterations[pyramid_level]; ++iteration)
+		{
+			jacobian_gpu.memset(0);
+			residuals_gpu.memset(0);
+			face.computeFace();
+			face.updateVertexBuffer();
+			face.draw();
 
-		//CUDA
-		computeJacobian(
-			//shared memory
-			face_bb,
-			nFeatures, frameWidth, frameHeight,
-			nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nUnknowns, n_current_residuals,
-			face.m_number_of_vertices * 3,
-			face.m_shape_coefficients.size(),
-			face.m_expression_coefficients.size(),
-			face.m_albedo_coefficients.size(),
-			face.m_sh_coefficients.size(),
-			wSparse, wDense, wReg,
+			auto face_pose = face.computeModelMatrix();
+			Eigen::Matrix<float, 3, 3> jacobian_local;
+			jacobian_local <<
+				face_pose[0][0], face_pose[1][0], face_pose[2][0],
+				face_pose[0][1], face_pose[1][1], face_pose[2][1],
+				face_pose[0][2], face_pose[1][2], face_pose[2][2];
 
-			frame_gpu.getPtr(),
+			glm::mat3 drx, dry, drz;
+			face.computeRotationDerivatives(drx, dry, drz);
 
-			face_pose, drx, dry, drz, projection, jacobian_local,
+			mapRenderTargets(face);
+			FaceBoundingBox face_bb = computeFaceBoundingBox(face.m_graphics_settings.texture_width, face.m_graphics_settings.texture_height);
 
-			//device memory input
-			ids_gpu.getPtr(), face.m_current_face_gpu.getPtr(), key_pts_gpu.getPtr(),
+			int n_current_residuals = 2 * nFeatures + nFaceCoeffs + 3 * face_bb.width * face_bb.height;
 
-			face.m_shape_basis_gpu.getPtr(),
-			face.m_expression_basis_gpu.getPtr(),
-			face.m_albedo_basis_gpu.getPtr(),
+			util::copy(m_sh_coefficients_gpu, face.m_sh_coefficients, 9);
 
-			face.m_shape_coefficients_gpu.getPtr(),
-			face.m_expression_coefficients_gpu.getPtr(),
-			face.m_albedo_coefficients_gpu.getPtr(),
-			m_sh_coefficients_gpu.getPtr(),
+			//CUDA
+			computeJacobian(
+				//shared memory
+				face_bb,
+				nFeatures, frameWidth, frameHeight,
+				nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs, nUnknowns, n_current_residuals,
+				face.m_number_of_vertices * 3,
+				face.m_shape_coefficients.size(),
+				face.m_expression_coefficients.size(),
+				face.m_albedo_coefficients.size(),
+				face.m_sh_coefficients.size(),
+				wSparse, wDense, wReg,
 
-			//device memory output
-			jacobian_gpu.getPtr(), residuals_gpu.getPtr()
-		);
+				frame_gpu.getPtr(),
 
-		unmapRenderTargets(face);
+				face_pose, drx, dry, drz, projection, jacobian_local,
 
-		//Apply step and update poses GPU
-		solveUpdatePCG(m_cublas, nUnknowns, n_current_residuals, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
-		util::copy(result, result_gpu, nUnknowns);
+				//device memory input
+				ids_gpu.getPtr(), face.m_current_face_gpu.getPtr(), key_pts_gpu.getPtr(),
 
-		updateParameters(result, projection, frame.cols / static_cast<float>(frame.rows), face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);
+				face.m_shape_basis_gpu.getPtr(),
+				face.m_expression_basis_gpu.getPtr(),
+				face.m_albedo_basis_gpu.getPtr(),
 
-		std::vector<float> residuals_loss_test(n_current_residuals);
-		util::copy(residuals_loss_test, residuals_gpu, n_current_residuals);
-		Eigen::Map<Eigen::VectorXf> residuals_loss_test_eigen(residuals_loss_test.data(), n_current_residuals);
-		std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
-		std::cout << "Iteration: " << iteration << " , Loss: " << glm::sqrt(residuals_loss_test_eigen.dot(residuals_loss_test_eigen)) << std::endl;
+				face.m_shape_coefficients_gpu.getPtr(),
+				face.m_expression_coefficients_gpu.getPtr(),
+				face.m_albedo_coefficients_gpu.getPtr(),
+				m_sh_coefficients_gpu.getPtr(),
+
+				//device memory output
+				jacobian_gpu.getPtr(), residuals_gpu.getPtr()
+			);
+
+			unmapRenderTargets(face);
+
+			//Apply step and update poses GPU
+			solveUpdatePCG(m_cublas, nUnknowns, n_current_residuals, nResiduals, jacobian_gpu, residuals_gpu, result_gpu, 1.0f, -1.0f);
+			util::copy(result, result_gpu, nUnknowns);
+
+			updateParameters(result, projection, frame.cols / static_cast<float>(frame.rows), face, nShapeCoeffs, nExpressionCoeffs, nAlbedoCoeffs);
+
+			std::vector<float> residuals_loss_test(n_current_residuals);
+			util::copy(residuals_loss_test, residuals_gpu, n_current_residuals);
+			Eigen::Map<Eigen::VectorXf> residuals_loss_test_eigen(residuals_loss_test.data(), n_current_residuals);
+			std::cout << "Unknowns: " << nUnknowns << ", Residuals: " << nResiduals << std::endl;
+			std::cout << "Iteration: " << iteration << " , Loss: " << glm::sqrt(residuals_loss_test_eigen.dot(residuals_loss_test_eigen)) << std::endl;
+		}
 	}
 }
 

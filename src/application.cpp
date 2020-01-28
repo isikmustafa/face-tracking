@@ -151,7 +151,6 @@ void Application::initMenuWidgets()
 		ImGui::SliderFloat("Dense Weight exp", &solver_parameters.dense_weight_exponent, -4.0f, 4.0f);
 		ImGui::SliderFloat("Regularizer exp", &solver_parameters.regularisation_weight_exponent, -8.0f, 4.0f);
 
-		ImGui::SliderInt("Gauss Newton iterations", &solver_parameters.num_gn_iterations, 1, 15);
 		ImGui::SliderInt("PCG iterations", &solver_parameters.num_pcg_iterations, 1, 500);
 
 		ImGui::SliderInt("Shape Parameters", &solver_parameters.num_shape_coefficients, 0, 160);

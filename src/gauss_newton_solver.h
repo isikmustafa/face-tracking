@@ -14,8 +14,8 @@ struct SolverParameters
 	float dense_weight_exponent = 0.0f;
 	float regularisation_weight_exponent = -4.6f;
 
-	int num_gn_iterations = 5;
-	int num_pcg_iterations = 10;
+	int num_gn_iterations[3] = { 1, 5, 25 };
+	int num_pcg_iterations = 4;
 
 	int num_shape_coefficients = 80;
 	int num_albedo_coefficients = 80;

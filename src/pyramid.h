@@ -20,6 +20,8 @@ public:
 
 	void setGraphicsSettings(int pyramid_level, Face::GraphicsSettings& graphics_settings) const;
 
+	int getNumberOfLevels() const { return m_face_framebuffer.size(); }
+
 private:
 	std::vector<GLuint> m_face_framebuffer;
 	std::vector<GLuint> m_rt_rgb;
