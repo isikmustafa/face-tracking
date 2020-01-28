@@ -180,7 +180,6 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 	util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, const float alphaLHS, const float alphaRHS)
 {
 	const float alpha = 1.f, beta = 0;
-	x.memset(0);
 
 	auto r = util::DeviceArray<float>(nUnknowns);	//current residual
 	auto p = util::DeviceArray<float>(nUnknowns);	//gradient 
@@ -192,7 +191,8 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 
 	auto diagJTJ = util::DeviceArray<float>(nUnknowns);
 	auto diagJTJp = util::DeviceArray<float>(nUnknowns);
-	
+
+	x.memset(0);
 	M.memset(0);
 	diagJTJ.memset(0);
 	diagJTJp.memset(0);
@@ -200,47 +200,52 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 	computeDiagJTJ(nUnknowns, nCurrentResiduals, nResiduals, J.getPtr(), diagJTJ.getPtr());
 	computeInverseJTJ(nUnknowns, diagJTJ.getPtr(), M.getPtr());
 
-	//r = -JTf;
+	// r = -JTf;
 	cublasSgemv(cublas, CUBLAS_OP_T, nCurrentResiduals, nUnknowns, &alphaRHS, J.getPtr(), nCurrentResiduals, residuals.getPtr(), 1, &beta, r.getPtr(), 1);
 
-	//z = Mr
+	// z = Mr
 	elementwiseMultiplication(nUnknowns, M.getPtr(), r.getPtr(), z.getPtr());
 
-	//p=z;
+	// p = z;
 	cublasScopy(cublas, nUnknowns, z.getPtr(), 1, p.getPtr(), 1);
 
-	float lambda = 0.0000001f; // TODO adaptive lambda parameter
+	// Damping parameter for LM
+	float lambda = 0.001f;
+	float v = 1.1f; // TODO Think about iterative update od the v
+
 	float zTr_old = 0.f, zTr = 0.f;
 	float pTJTJp;
-	//zTr
+
+	// zTr
 	cublasSdot(cublas, nUnknowns, z.getPtr(), 1, r.getPtr(), 1, &zTr_old);
 	int i = 0;
 	for (; i < std::min(nUnknowns, m_params.num_pcg_iterations); ++i)
 	{
-		//apply JTJp
+		// apply JTJp
 		cublasSgemv(cublas, CUBLAS_OP_N, nCurrentResiduals, nUnknowns, &alphaLHS, J.getPtr(), nCurrentResiduals, p.getPtr(), 1, &beta, Jp.getPtr(), 1);
 		cublasSgemv(cublas, CUBLAS_OP_T, nCurrentResiduals, nUnknowns, &alpha, J.getPtr(), nCurrentResiduals, Jp.getPtr(), 1, &beta, JTJp.getPtr(), 1);
 
-		//apply diag(JTJ)p
+		// apply diag(JTJ)p
 		elementwiseMultiplication(nUnknowns, diagJTJ.getPtr(), p.getPtr(), diagJTJp.getPtr());
 
-		// add (lambda*diagJTJp + JTJp)
+		// apply lambda * diag(JTJ)p + JTJp
 		cublasSaxpy(cublas, nUnknowns, &lambda, diagJTJp.getPtr(), 1, JTJp.getPtr(), 1);
 
 		cublasSdot(cublas, nUnknowns, p.getPtr(), 1, JTJp.getPtr(), 1, &pTJTJp);
 
 		float ak = zTr_old / std::max(pTJTJp, m_params.kNearZero);
-		//x = ak*p + x
+
+		// x = ak * p + x
 		cublasSaxpy(cublas, nUnknowns, &ak, p.getPtr(), 1, x.getPtr(), 1);
 
-		//r = r - ak* JTJp
+		// r = r - ak * JTJp
 		ak *= -1;
 		cublasSaxpy(cublas, nUnknowns, &ak, JTJp.getPtr(), 1, r.getPtr(), 1);
 
-		//z=Mr
+		// z = Mr
 		elementwiseMultiplication(nUnknowns, M.getPtr(), r.getPtr(), z.getPtr());
 
-		//zTr
+		// zTr
 		cublasSdot(cublas, nUnknowns, z.getPtr(), 1, r.getPtr(), 1, &zTr);
 
 		if (zTr < m_params.kTolerance)
@@ -250,11 +255,13 @@ void GaussNewtonSolver::solveUpdatePCG(const cublasHandle_t& cublas, const int n
 
 		float bk = zTr / std::max(zTr_old, m_params.kNearZero);
 
-		//p = z + bk*p        
+		// p = z + bk * p        
 		cublasSscal(cublas, nUnknowns, &bk, p.getPtr(), 1);
 		cublasSaxpy(cublas, nUnknowns, &alpha, z.getPtr(), 1, p.getPtr(), 1);
 
 		zTr_old = zTr;
+
+		lambda *= v;
 	}
 	//	std::cout << "PCG iters: " << i << std::endl; 
 }
