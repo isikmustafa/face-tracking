@@ -40,10 +40,18 @@ private:
 	Pyramid m_pyramid;
 	GLuint m_empty_vao{ 0 };
 	GLuint m_camera_frame_texture{ 0 };
+	GLuint m_video_framebuffer;
+	GLuint m_video_texture;
+	cudaGraphicsResource_t m_video_texture_resource;
+	GLSLProgram m_video_shader;
+	int m_video_width;
+	int m_video_height;
+	cv::VideoWriter m_video_writer;
 
 private:
 	void initGraphics();
 	void initMenuWidgets();
 	void reloadShaders();
 	void draw(cv::Mat& frame);
+	void saveVideoFrame(cv::Mat& frame);
 };

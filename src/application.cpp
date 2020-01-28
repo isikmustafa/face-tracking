@@ -27,6 +27,9 @@ Application::Application()
 	, m_tracker()
 	, m_menu(m_gui_position, m_gui_size)
 	, m_pyramid(kNumOfPyramidLevels, m_screen_width, m_screen_height)
+	, m_video_width(m_screen_width)
+	, m_video_height(m_screen_height / 2)
+	, m_video_writer("../../video.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 24, cv::Size(m_video_width, m_video_height))
 {}
 
 void Application::run()
@@ -63,6 +66,7 @@ void Application::run()
 		m_face.draw();
 
 		draw(raw_frame);
+		saveVideoFrame(raw_frame);
 		m_menu.draw();
 		m_window.refresh();
 
@@ -172,8 +176,25 @@ void Application::initGraphics()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindRenderbuffer(GL_RENDERBUFFER, 0);
+	//Video framebuffer
+	glGenFramebuffers(1, &m_video_framebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, m_video_framebuffer);
+
+	glGenTextures(1, &m_video_texture);
+	glBindTexture(GL_TEXTURE_2D, m_video_texture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_video_width, m_video_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_video_texture, 0);
+	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterImage(&m_video_texture_resource, m_video_texture, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));
+
+	GLenum draw_buffers[] = { GL_COLOR_ATTACHMENT0 };
+	glDrawBuffers(1, draw_buffers);
+
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	{
+		throw std::runtime_error("Error: Failed to create the m_video_framebuffer!");
+	}
 }
 
 void Application::reloadShaders()
@@ -192,6 +213,11 @@ void Application::reloadShaders()
 	m_fullscreen_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/quad.frag");
 	m_fullscreen_shader.link();
 
+	m_video_shader = GLSLProgram();
+	m_video_shader.attachShader(GL_VERTEX_SHADER, "../src/shader/quad.vert");
+	m_video_shader.attachShader(GL_FRAGMENT_SHADER, "../src/shader/video.frag");
+	m_video_shader.link();
+
 	glFinish();
 
 	auto& graphics_settings = m_face.getGraphicsSettings();
@@ -200,8 +226,6 @@ void Application::reloadShaders()
 
 void Application::draw(cv::Mat& frame)
 {
-	const auto& graphics_settings = m_face.getGraphicsSettings();
-
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(m_gui_size.x, 0, m_screen_width, m_screen_height);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -211,7 +235,7 @@ void Application::draw(cv::Mat& frame)
 	m_fullscreen_shader.use();
 	glActiveTexture(GL_TEXTURE0);
 	m_fullscreen_shader.setUniformIVar("face", { 0 });
-	glBindTexture(GL_TEXTURE_2D, graphics_settings.rt_rgb);
+	glBindTexture(GL_TEXTURE_2D, m_face.getGraphicsSettings().rt_rgb);
 
 	glActiveTexture(GL_TEXTURE1);
 	m_fullscreen_shader.setUniformIVar("background", { 1 });
@@ -220,4 +244,39 @@ void Application::draw(cv::Mat& frame)
 
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 	glBindVertexArray(0);
+}
+
+void Application::saveVideoFrame(cv::Mat& frame)
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, m_video_framebuffer);
+	glViewport(0, 0, m_video_width, m_video_height);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glDisable(GL_DEPTH_TEST);
+	glBindVertexArray(m_empty_vao);
+
+	m_video_shader.use();
+	glActiveTexture(GL_TEXTURE0);
+	m_video_shader.setUniformIVar("face", { 0 });
+	glBindTexture(GL_TEXTURE_2D, m_face.getGraphicsSettings().rt_rgb);
+
+	glActiveTexture(GL_TEXTURE1);
+	m_video_shader.setUniformIVar("background", { 1 });
+	glBindTexture(GL_TEXTURE_2D, m_camera_frame_texture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m_screen_width, m_screen_height, 0, GL_BGR, GL_UNSIGNED_BYTE, frame.data);
+
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+	glBindVertexArray(0);
+	glFinish();
+
+	CHECK_CUDA_ERROR(cudaGraphicsMapResources(1, &m_video_texture_resource, 0));
+
+	cudaArray_t video_array = nullptr;
+	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&video_array, m_video_texture_resource, 0, 0));
+
+	cv::Mat video_frame(cv::Size(m_video_width, m_video_height), CV_8UC4);
+	CHECK_CUDA_ERROR(cudaMemcpyFromArray(video_frame.data, video_array, 0, 0, m_video_width * m_video_height * 4, cudaMemcpyDeviceToHost));
+
+	m_video_writer.write(video_frame);
+
+	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &m_video_texture_resource, 0));
 }

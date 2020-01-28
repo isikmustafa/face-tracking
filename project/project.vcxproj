@@ -58,6 +58,7 @@
     <None Include="..\src\shader\face.vert" />
     <None Include="..\src\shader\quad.frag" />
     <None Include="..\src\shader\quad.vert" />
+    <None Include="..\src\shader\video.frag" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="..\src\face.cu" />
