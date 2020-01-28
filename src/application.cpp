@@ -26,7 +26,7 @@ Application::Application()
 	, m_solver()
 	, m_tracker()
 	, m_menu(m_gui_position, m_gui_size)
-	, m_pyramid(kNumOfPyramidLevels, m_screen_width, m_screen_height)
+	, m_pyramid(kNumOfPyramidLevels, m_screen_width, m_screen_height, 0)
 	, m_video_width(m_screen_width)
 	, m_video_height(m_screen_height / 2)
 	, m_video_writer("../../video.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 24, cv::Size(m_video_width, m_video_height))
@@ -56,11 +56,13 @@ void Application::run()
 		}
 		cv::Mat frame;
 		cv::pyrDown(raw_frame, frame);
+		//cv::pyrDown(raw_frame, raw_frame);
+		//cv::pyrDown(raw_frame, raw_frame);
 
 		auto sparse_features = m_tracker.getSparseFeatures(frame);
 		m_solver.solve(sparse_features, m_face, raw_frame, m_projection, m_pyramid);
 
-		m_pyramid.setGraphicsSettings(0, m_face.getGraphicsSettings()); //Render highest resolution in the end.
+		m_pyramid.setGraphicsSettings(m_pyramid.getHighestLevel(), m_face.getGraphicsSettings()); //Render highest resolution in the end.
 		m_face.computeFace();
 		m_face.updateVertexBuffer();
 		m_face.draw();

@@ -9,7 +9,7 @@
 class Pyramid
 {
 public:
-	Pyramid(int number_of_levels, int top_width, int top_height);
+	Pyramid(int number_of_levels, int top_width, int top_height, int highest_level = 0);
 	Pyramid(Pyramid&) = delete;
 	Pyramid(Pyramid&& rhs) = delete;
 	Pyramid& operator=(Pyramid&) = delete;
@@ -21,6 +21,7 @@ public:
 	void setGraphicsSettings(int pyramid_level, Face::GraphicsSettings& graphics_settings) const;
 
 	int getNumberOfLevels() const { return m_face_framebuffer.size(); }
+	int getHighestLevel() const { return m_highest_level; }
 
 private:
 	std::vector<GLuint> m_face_framebuffer;
@@ -33,4 +34,5 @@ private:
 	std::vector<GLuint> m_depth_buffer;
 	std::vector<int> m_widths;
 	std::vector<int> m_heights;
+	int m_highest_level;
 };

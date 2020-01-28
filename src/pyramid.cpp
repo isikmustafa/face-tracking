@@ -1,6 +1,6 @@
 #include "pyramid.h"
 
-Pyramid::Pyramid(int number_of_levels, int top_width, int top_height)
+Pyramid::Pyramid(int number_of_levels, int top_width, int top_height, int highest_level)
 	: m_face_framebuffer(number_of_levels, 0)
 	, m_rt_rgb(number_of_levels, 0)
 	, m_rt_barycentrics(number_of_levels, 0)
@@ -11,6 +11,7 @@ Pyramid::Pyramid(int number_of_levels, int top_width, int top_height)
 	, m_depth_buffer(number_of_levels, 0)
 	, m_widths(number_of_levels)
 	, m_heights(number_of_levels)
+	, m_highest_level(highest_level)
 {
 	m_widths[0] = top_width;
 	m_heights[0] = top_height;
@@ -20,7 +21,7 @@ Pyramid::Pyramid(int number_of_levels, int top_width, int top_height)
 		m_heights[i] = m_heights[i - 1] / 2;
 	}
 
-	for (int i = 0; i < number_of_levels; ++i)
+	for (int i = highest_level; i < number_of_levels; ++i)
 	{
 		glGenFramebuffers(1, &m_face_framebuffer[i]);
 		glBindFramebuffer(GL_FRAMEBUFFER, m_face_framebuffer[i]);
