@@ -5,7 +5,6 @@
 #include "tracker.h"
 #include "menu.h"
 #include "gauss_newton_solver.h"
-#include "quad.h"
 #include "pyramid.h"
 
 #include <GLFW/glfw3.h>

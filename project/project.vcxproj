@@ -25,7 +25,6 @@
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\menu.cpp" />
     <ClCompile Include="..\src\pyramid.cpp" />
-    <ClCompile Include="..\src\quad.cpp" />
     <ClCompile Include="..\src\tracker.cpp" />
     <ClCompile Include="..\src\window.cpp" />
   </ItemGroup>
@@ -47,7 +46,6 @@
     <ClInclude Include="..\src\glsl_program.h" />
     <ClInclude Include="..\src\menu.h" />
     <ClInclude Include="..\src\pyramid.h" />
-    <ClInclude Include="..\src\quad.h" />
     <ClInclude Include="..\src\tracker.h" />
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\window.h" />

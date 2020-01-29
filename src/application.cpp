@@ -94,70 +94,84 @@ void Application::initMenuWidgets()
 	auto& shape_coefficients = m_face.getShapeCoefficients();
 	auto shape_parameters_gui = [&shape_coefficients]()
 	{
-		ImGui::CollapsingHeader("Shape Parameters", ImGuiTreeNodeFlags_DefaultOpen);
-		ImGui::SliderFloat("Shape1", &shape_coefficients[0], -5.0f, 5.0f);
-		ImGui::SliderFloat("Shape2", &shape_coefficients[1], -5.0f, 5.0f);
-		ImGui::SliderFloat("Shape3", &shape_coefficients[2], -5.0f, 5.0f);
-		ImGui::SliderFloat("Shape4", &shape_coefficients[3], -5.0f, 5.0f);
-		ImGui::SliderFloat("Shape5", &shape_coefficients[4], -5.0f, 5.0f);
+		ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.60f);
+		if (ImGui::CollapsingHeader("Shape Parameters", ImGuiTreeNodeFlags_None))
+		{
+			ImGui::SliderFloat("Shape1", &shape_coefficients[0], -5.0f, 5.0f);
+			ImGui::SliderFloat("Shape2", &shape_coefficients[1], -5.0f, 5.0f);
+			ImGui::SliderFloat("Shape3", &shape_coefficients[2], -5.0f, 5.0f);
+			ImGui::SliderFloat("Shape4", &shape_coefficients[3], -5.0f, 5.0f);
+			ImGui::SliderFloat("Shape5", &shape_coefficients[4], -5.0f, 5.0f);
+		}
 	};
 	m_menu.attach(std::move(shape_parameters_gui));
 
 	auto& albedo_coefficients = m_face.getAlbedoCoefficients();
 	auto albedo_parameters_gui = [&albedo_coefficients]()
 	{
-		ImGui::CollapsingHeader("Albedo Parameters", ImGuiTreeNodeFlags_DefaultOpen);
-		ImGui::SliderFloat("Albedo1", &albedo_coefficients[0], -5.0f, 5.0f);
-		ImGui::SliderFloat("Albedo2", &albedo_coefficients[1], -5.0f, 5.0f);
-		ImGui::SliderFloat("Albedo3", &albedo_coefficients[2], -5.0f, 5.0f);
-		ImGui::SliderFloat("Albedo4", &albedo_coefficients[3], -5.0f, 5.0f);
-		ImGui::SliderFloat("Albedo5", &albedo_coefficients[4], -5.0f, 5.0f);
+		if (ImGui::CollapsingHeader("Albedo Parameters", ImGuiTreeNodeFlags_None))
+		{
+			ImGui::SliderFloat("Albedo1", &albedo_coefficients[0], -5.0f, 5.0f);
+			ImGui::SliderFloat("Albedo2", &albedo_coefficients[1], -5.0f, 5.0f);
+			ImGui::SliderFloat("Albedo3", &albedo_coefficients[2], -5.0f, 5.0f);
+			ImGui::SliderFloat("Albedo4", &albedo_coefficients[3], -5.0f, 5.0f);
+			ImGui::SliderFloat("Albedo5", &albedo_coefficients[4], -5.0f, 5.0f);
+		}
 	};
 	m_menu.attach(std::move(albedo_parameters_gui));
 
 	auto& expression_coefficients = m_face.getExpressionCoefficients();
 	auto expression_parameters_gui = [&expression_coefficients]()
 	{
-		ImGui::CollapsingHeader("Expression Parameters", ImGuiTreeNodeFlags_DefaultOpen);
-		ImGui::SliderFloat("Expression1", &expression_coefficients[0], -1.0f, 1.0f);
-		ImGui::SliderFloat("Expression2", &expression_coefficients[1], -1.0f, 1.0f);
-		ImGui::SliderFloat("Expression3", &expression_coefficients[2], -1.0f, 1.0f);
-		ImGui::SliderFloat("Expression4", &expression_coefficients[3], -1.0f, 1.0f);
-		ImGui::SliderFloat("Expression5", &expression_coefficients[4], -1.0f, 1.0f);
+		if (ImGui::CollapsingHeader("Expression Parameters", ImGuiTreeNodeFlags_None))
+		{
+			ImGui::SliderFloat("Expression1", &expression_coefficients[0], -1.0f, 1.0f);
+			ImGui::SliderFloat("Expression2", &expression_coefficients[1], -1.0f, 1.0f);
+			ImGui::SliderFloat("Expression3", &expression_coefficients[2], -1.0f, 1.0f);
+			ImGui::SliderFloat("Expression4", &expression_coefficients[3], -1.0f, 1.0f);
+			ImGui::SliderFloat("Expression5", &expression_coefficients[4], -1.0f, 1.0f);
+		}
 	};
 	m_menu.attach(std::move(expression_parameters_gui));
 
 	auto& sh_coefficients = m_face.getSHCoefficients();
 	auto sh_parameters_gui = [&sh_coefficients]()
 	{
-		ImGui::CollapsingHeader("Spherical Harmonics Parameters", ImGuiTreeNodeFlags_DefaultOpen);
-		ImGui::SliderFloat("Ambient", &sh_coefficients[0], -5.0f, 5.0f);
-		ImGui::SliderFloat("y", &sh_coefficients[1], -5.0f, 5.0f);
-		ImGui::SliderFloat("z", &sh_coefficients[2], -5.0f, 5.0f);
-		ImGui::SliderFloat("x", &sh_coefficients[3], -5.0f, 5.0f);
-		ImGui::SliderFloat("xy", &sh_coefficients[4], -5.0f, 5.0f);
-		ImGui::SliderFloat("yz", &sh_coefficients[5], -5.0f, 5.0f);
-		ImGui::SliderFloat("3z2 - 1", &sh_coefficients[6], -5.0f, 5.0f);
-		ImGui::SliderFloat("xz", &sh_coefficients[7], -5.0f, 5.0f);
-		ImGui::SliderFloat("x2-y2", &sh_coefficients[8], -5.0f, 5.0f);
+		if (ImGui::CollapsingHeader("Spherical Harmonics Parameters", ImGuiTreeNodeFlags_None))
+		{
+			ImGui::SliderFloat("Ambient", &sh_coefficients[0], -5.0f, 5.0f);
+			ImGui::SliderFloat("y", &sh_coefficients[1], -5.0f, 5.0f);
+			ImGui::SliderFloat("z", &sh_coefficients[2], -5.0f, 5.0f);
+			ImGui::SliderFloat("x", &sh_coefficients[3], -5.0f, 5.0f);
+			ImGui::SliderFloat("xy", &sh_coefficients[4], -5.0f, 5.0f);
+			ImGui::SliderFloat("yz", &sh_coefficients[5], -5.0f, 5.0f);
+			ImGui::SliderFloat("3z2 - 1", &sh_coefficients[6], -5.0f, 5.0f);
+			ImGui::SliderFloat("xz", &sh_coefficients[7], -5.0f, 5.0f);
+			ImGui::SliderFloat("x2-y2", &sh_coefficients[8], -5.0f, 5.0f);
+		}
 	};
 	m_menu.attach(std::move(sh_parameters_gui));
 
 	auto& solver_parameters = m_solver.getSolverParameters();
-	auto opt_parameters = [&solver_parameters]()
+	auto opt_parameters = [&solver_parameters, this]()
 	{
-		ImGui::CollapsingHeader("Optimisation Parameters", ImGuiTreeNodeFlags_DefaultOpen);
-		ImGui::SliderFloat("Sparse Weight exp", &solver_parameters.sparse_weight_exponent, -4.0f, 4.0f);
-		ImGui::SliderFloat("Dense Weight exp", &solver_parameters.dense_weight_exponent, -4.0f, 4.0f);
-		ImGui::SliderFloat("Regularizer exp", &solver_parameters.regularisation_weight_exponent, -8.0f, 4.0f);
+		ImGui::PushItemWidth(ImGui::GetWindowWidth() * 0.50f);
+		if (ImGui::CollapsingHeader("Optimisation Parameters", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			ImGui::SliderFloat("Sparse Weight exp", &solver_parameters.sparse_weight_exponent, -4.0f, 4.0f);
+			ImGui::SliderFloat("Dense Weight exp", &solver_parameters.dense_weight_exponent, -4.0f, 4.0f);
+			ImGui::SliderFloat("Reg. Weight exp", &solver_parameters.regularisation_weight_exponent, -8.0f, 4.0f);
 
-		ImGui::SliderInt("PCG iterations", &solver_parameters.num_pcg_iterations, 1, 500);
+			ImGui::SliderInt("# PCG iterations", &solver_parameters.num_pcg_iterations, 1, 500);
+			for (int i = 0; i < m_pyramid.getNumberOfLevels(); ++i)
+			{
+				ImGui::SliderInt(("# GN iterations L" + std::to_string(i)).c_str(), solver_parameters.num_gn_iterations + i, 0, 25);
+			}
 
-		ImGui::SliderInt("Shape Parameters", &solver_parameters.num_shape_coefficients, 0, 160);
-		ImGui::SliderInt("Albedo Parameters", &solver_parameters.num_albedo_coefficients, 0, 160);
-		ImGui::SliderInt("Expression Parameters", &solver_parameters.num_expression_coefficients, 0, 76);
-
-		ImGui::End();
+			ImGui::SliderInt("# Shape Params", &solver_parameters.num_shape_coefficients, 0, 160);
+			ImGui::SliderInt("# Albedo Params", &solver_parameters.num_albedo_coefficients, 0, 160);
+			ImGui::SliderInt("# Expression Params", &solver_parameters.num_expression_coefficients, 0, 76);
+		}
 	};
 	m_menu.attach(std::move(opt_parameters));
 }

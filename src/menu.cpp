@@ -36,6 +36,8 @@ void Menu::draw() const
 		func();
 	}
 
+	ImGui::End();
+
 	//Render.
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

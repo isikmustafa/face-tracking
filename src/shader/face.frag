@@ -18,6 +18,8 @@ float computeSH(vec3 dir);
 
 void main()
 {
+	//We want remove the ears of the model. To do that, we colored it to green value of 100.0f,
+	//so that we can discard them in the fragment shader.
 	if (frag.albedo.y > 1.0f)
 	{
 		discard;
