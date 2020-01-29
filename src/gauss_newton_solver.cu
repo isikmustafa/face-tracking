@@ -18,7 +18,7 @@ __global__ void cuComputeJacobian(
 	const int nShapeCoeffs, const int nExpressionCoeffs, const int nAlbedoCoeffs,
 	const int nUnknowns, const int nResiduals,
 	const int nVerticesTimes3, const int nShapeCoeffsTotal, const int nExpressionCoeffsTotal, const int nAlbedoCoeffsTotal,
-	const float wSparse, const float wDense, const float wReg,
+	const float wSparse, float wDense, const float wReg,
 
 	uchar* image, float* debug_frame,
 
@@ -127,6 +127,8 @@ __global__ void cuComputeJacobian(
 		frame_rgb.z() = image[background_index + 2] / 255.0f;
 
 		Eigen::Vector3f residual = face_rgb - frame_rgb;
+		wDense /= glm::sqrt(glm::max(residual.norm(), 1.0e-8f)); //IRLS with L1 norm.
+
 		residuals.block(offset_rows + current_index * 3, 0, 3, 1) = residual * wDense;
 
 		//Albedo
@@ -241,13 +243,12 @@ __global__ void cuComputeJacobian(
 		int background_index_right = 3 * (xp + 1 + yp * imageWidth);
 		int background_index_up = 3 * (xp + (yp - 1) * imageWidth);
 		int background_index_down = 3 * (xp + (yp + 1) * imageWidth);
-		jacobian_uv(0, 0) = (image[background_index_right] / 255.0f - image[background_index_left] / 255.0f) * 0.25f * imageWidth;
-		jacobian_uv(1, 0) = (image[background_index_right + 1] / 255.0f - image[background_index_left + 1] / 255.0f) *  0.25f * imageWidth;
-		jacobian_uv(2, 0) = (image[background_index_right + 2] / 255.0f - image[background_index_left + 2] / 255.0f) *  0.25f * imageWidth;
-		jacobian_uv(0, 1) = -(image[background_index_down] / 255.0f - image[background_index_up] / 255.0f) *  0.25f  * imageHeight;
-		jacobian_uv(1, 1) = -(image[background_index_down + 1] / 255.0f - image[background_index_up + 1] / 255.0f) *  0.25f  * imageHeight;
-		jacobian_uv(2, 1) = -(image[background_index_down + 2] / 255.0f - image[background_index_up + 2] / 255.0f) *  0.25f  * imageHeight;
-		jacobian_uv = -jacobian_uv;
+		jacobian_uv(0, 0) = -(image[background_index_right] / 255.0f - image[background_index_left] / 255.0f) * 0.25f * imageWidth;
+		jacobian_uv(1, 0) = -(image[background_index_right + 1] / 255.0f - image[background_index_left + 1] / 255.0f) *  0.25f * imageWidth;
+		jacobian_uv(2, 0) = -(image[background_index_right + 2] / 255.0f - image[background_index_left + 2] / 255.0f) *  0.25f * imageWidth;
+		jacobian_uv(0, 1) = (image[background_index_down] / 255.0f - image[background_index_up] / 255.0f) *  0.25f  * imageHeight;
+		jacobian_uv(1, 1) = (image[background_index_down + 1] / 255.0f - image[background_index_up + 1] / 255.0f) *  0.25f  * imageHeight;
+		jacobian_uv(2, 1) = (image[background_index_down + 2] / 255.0f - image[background_index_up + 2] / 255.0f) *  0.25f  * imageHeight;
 
 		//Jacobian for homogenization (AKA division by w)
 		Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
@@ -267,7 +268,7 @@ __global__ void cuComputeJacobian(
 		//Jacobian for intrinsics
 		Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
 		jacobian_intrinsics(0, 0) = world_coord.x;
-		//jacobian.block<3, 1>(offset_rows + current_index * 3, 0) = jacobian_uv * jacobian_proj * jacobian_intrinsics * wDense;
+		jacobian.block<3, 1>(offset_rows + current_index * 3, 0) = jacobian_uv * jacobian_proj * jacobian_intrinsics * wDense;
 
 		//Derivative of world coordinates with respect to rotation coefficients
 		auto dx = drx * local_coord;
@@ -411,7 +412,7 @@ __global__ void cuComputeJacobian(
 
 	auto jacobian_expression = jacobian_proj_world_local * expression_basis.block(3 * vertex_id, 0, 3, nExpressionCoeffs);
 	jacobian.block(i * 2, 7 + nShapeCoeffs, 2, nExpressionCoeffs) = jacobian_expression;
-		}
+}
 
 __global__ void cuComputeVisiblePixelsAndBB(cudaTextureObject_t texture, FaceBoundingBox* face_bb, int width, int height)
 {
@@ -532,7 +533,7 @@ void GaussNewtonSolver::computeJacobian(
 		p_jacobian, p_residuals
 		);
 		});
-	std::cout << "Jacobian kernel time: " << time << std::endl;
+	//std::cout << "Jacobian kernel time: " << time << std::endl;
 
 
 	cudaDeviceSynchronize();

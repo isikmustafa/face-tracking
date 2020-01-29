@@ -14,7 +14,7 @@ Face::Face(const std::string& morphable_model_directory)
 	, m_rotation_coefficients(0.0f, 0.0f, 0.0f)
 	, m_translation_coefficients(0.0f, 0.0f, -0.4f)
 {
-	std::ifstream file(morphable_model_directory + "/averageMesh.off");
+	std::ifstream file(morphable_model_directory + "/averageMesh2.off");
 	std::string str_dummy;
 	file >> str_dummy;
 
@@ -26,7 +26,6 @@ Face::Face(const std::string& morphable_model_directory)
 
 	std::vector<glm::vec3> positions(m_number_of_vertices);
 	std::vector<glm::vec3> colors(m_number_of_vertices);
-	std::vector<glm::vec2> tex_coords(m_number_of_vertices);
 
 	m_sh_coefficients[0] = 0.5;
 
@@ -42,8 +41,6 @@ Face::Face(const std::string& morphable_model_directory)
 		file >> colors[i].x >> colors[i].y >> colors[i].z;
 		colors[i] *= (1.0f / 255.0f);
 		file >> int_dummy;
-
-		file >> tex_coords[i].x >> tex_coords[i].y;
 	}
 
 	for (int i = 0; i < number_of_faces; ++i)
@@ -92,8 +89,6 @@ Face::Face(const std::string& morphable_model_directory)
 	glBufferData(GL_ARRAY_BUFFER, positions_byte_size + colors_byte_size + normals_byte_size + tex_coords_byte_size, nullptr, GL_STATIC_DRAW);
 	CHECK_CUDA_ERROR(cudaGraphicsGLRegisterBuffer(&m_resource, m_vertex_buffer, cudaGraphicsRegisterFlagsWriteDiscard));
 
-	//Only copy texture coordinate information via glBufferSubData. Others will be updated via cuda-gl interop.
-	glBufferSubData(GL_ARRAY_BUFFER, positions_byte_size + colors_byte_size + normals_byte_size, tex_coords_byte_size, tex_coords.data());
 	updateVertexBuffer();
 
 	glEnableVertexAttribArray(0);
@@ -104,7 +99,6 @@ Face::Face(const std::string& morphable_model_directory)
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)0);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)(positions_byte_size));
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)(positions_byte_size + colors_byte_size));
-	glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (GLvoid*)(positions_byte_size + colors_byte_size + normals_byte_size));
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_index_buffer);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_number_of_indices * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
@@ -266,12 +260,12 @@ void Face::draw() const
 		throw std::runtime_error("Error: Draw is called while rts is mapped!");
 	}
 
-	// Render to our framebuffer
+	// Render to face framebuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, m_graphics_settings.framebuffer);
-
 	glViewport(0, 0, m_graphics_settings.texture_width, m_graphics_settings.texture_height);
 	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
 
 	m_graphics_settings.shader->use();
 	m_graphics_settings.shader->setMat4("model", computeModelMatrix());
@@ -280,9 +274,6 @@ void Face::draw() const
 	glBindVertexArray(m_vertex_array);
 	glDrawElements(GL_TRIANGLES, m_number_of_indices, GL_UNSIGNED_INT, 0);
 	glBindVertexArray(0);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glViewport(0, 0, m_graphics_settings.screen_width, m_graphics_settings.screen_height);
 }
 
 //Only load .matrix file with _modified suffix.

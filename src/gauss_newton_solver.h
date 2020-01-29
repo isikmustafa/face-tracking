@@ -1,6 +1,8 @@
 #pragma once
 
 #include "face.h"
+#include "pyramid.h"
+
 #include <Eigen/Dense>
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -12,8 +14,8 @@ struct SolverParameters
 	float dense_weight_exponent = 0.0f;
 	float regularisation_weight_exponent = -4.6f;
 
-	int num_gn_iterations = 5;
-	int num_pcg_iterations = 10;
+	int num_gn_iterations[3] = { 1, 5, 25 };
+	int num_pcg_iterations = 4;
 
 	int num_shape_coefficients = 80;
 	int num_albedo_coefficients = 80;
@@ -57,7 +59,7 @@ public:
 	GaussNewtonSolver();
 	~GaussNewtonSolver();
 
-	void solve(const std::vector<glm::vec2>& sparse_features, Face& face, cv::Mat& frame, glm::mat4& projection);
+	void solve(const std::vector<glm::vec2>& sparse_features, Face& face, cv::Mat& frame, glm::mat4& projection, const Pyramid& pyramid);
 
 	SolverParameters& getSolverParameters() { return m_params; }
 	const SolverParameters& getSolverParameters() const { return m_params; }
@@ -104,7 +106,7 @@ private:
 	FaceBoundingBox computeFaceBoundingBox(const int imageWidth, const int imageHeight); 
 	void computeJacobiPreconditioner(const int nUnknowns, const int nCurrentResiduals, const int nResiduals, float* jacobian, float* preconditioner);
 
-	float solveUpdateCG(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
+	void solveUpdateCG(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
 	void solveUpdatePCG(const cublasHandle_t& cublas, int nUnknowns, int nCurrentResiduals, int nResiduals, util::DeviceArray<float>& jacobian,
@@ -113,7 +115,7 @@ private:
 	void solveUpdateLU(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
-	void updateParameters(const std::vector<float>& result, glm::mat4& projection, Face& face, int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs);
+	void updateParameters(const std::vector<float>& result, glm::mat4& projection, float aspect_ratio, Face& face, int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs);
 
 	void mapRenderTargets(Face& face);
 	void unmapRenderTargets(Face& face);
