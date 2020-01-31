@@ -307,41 +307,6 @@ __global__ void cuComputeJacobian(
 			(jacobian_proj_world_local * barycentrics_sampled.y) * expression_basis.block(3 * vertex_ids_sampled.y, 0, 3, nExpressionCoeffs) +
 			(jacobian_proj_world_local * barycentrics_sampled.z) * expression_basis.block(3 * vertex_ids_sampled.z, 0, 3, nExpressionCoeffs);
 
-
-
-#ifdef TEST_TEXTURE
-		if (rgb_sampled.w > 0)
-		{
-			auto uv = glm::vec2(proj_coord.x, proj_coord.y) / proj_coord.w;
-			uv.y = -uv.y;
-			uv = uv * 0.5f + 0.5f;
-			int pixel_x = uv.x * imageWidth;
-			int pixel_y = uv.y * imageHeight;
-
-			auto a_current_index = pixel_x + pixel_y * imageWidth;
-			debug_frame[a_current_index * 3] = face_rgb.x();
-			debug_frame[a_current_index * 3 + 1] = face_rgb.y();
-			debug_frame[a_current_index * 3 + 2] = face_rgb.z();
-
-			/*debug_frame[current_index * 3] = frame_rgb.x();
-			debug_frame[current_index * 3 + 1] = frame_rgb.y();
-			debug_frame[current_index * 3 + 2] = frame_rgb.z();*/
-
-			/*debug_frame[current_index * 3] = barycentrics_sampled.x;
-			debug_frame[current_index * 3 + 1] = barycentrics_sampled.y;
-			debug_frame[current_index * 3 + 2] = barycentrics_sampled.z;*/
-
-			/*debug_frame[current_index * 3] = (normal_glm.x + 1.0f) * 0.5f;
-			debug_frame[current_index * 3 + 1] = (normal_glm.y + 1.0f) * 0.5f;
-			debug_frame[current_index * 3 + 2] = (normal_glm.z + 1.0f) * 0.5f;*/
-		}
-		else
-		{
-			//debug_frame[current_index * 3] = image[background_index] / 255.0f;
-			//debug_frame[current_index * 3 + 1] = image[background_index + 1] / 255.0f;
-			//debug_frame[current_index * 3 + 2] = image[background_index + 2] / 255.0f;
-		}
-#endif // TEST_TEXTURE
 		return;
 	}
 
@@ -533,28 +498,9 @@ void GaussNewtonSolver::computeJacobian(
 		p_jacobian, p_residuals
 		);
 		});
-	//std::cout << "Jacobian kernel time: " << time << std::endl;
-
+	std::cout << "Jacobian kernel time: " << time << std::endl;
 
 	cudaDeviceSynchronize();
-
-#ifdef TEST_TEXTURE
-	static cv::VideoWriter video_writer("../../out_debug.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 24, cv::Size(imageWidth, imageHeight));
-	std::vector<float> temp_memory_host(temp_memory.getSize());
-	util::copy(temp_memory_host, temp_memory, temp_memory.getSize());
-	cv::Mat image_debug(cv::Size(imageWidth, imageHeight), CV_8UC3);
-	for (int y = 0; y < image_debug.rows; y++)
-	{
-		for (int x = 0; x < image_debug.cols; x++)
-		{
-			auto idx = (x + y * imageWidth) * 3;
-			// OpenCV expects it to be an BGRA image.
-			image_debug.at<cv::Vec3b>(cv::Point(x, y)) = cv::Vec3b(255.0f * cv::Vec3f(temp_memory_host[idx + 2], temp_memory_host[idx + 1], temp_memory_host[idx]));
-		}
-	}
-	video_writer.write(image_debug);
-	//cv::imwrite("../../dense_test.png", image_debug);
-#endif // TEST_TEXTURE
 }
 
 __global__ void cuComputeJTJDiagonals(const int nUnknowns, const int nCurrentResiduals, const int nResiduals, float* jacobian, float* preconditioner)

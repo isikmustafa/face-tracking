@@ -77,10 +77,6 @@ private:
 	unsigned int m_number_of_indices{ 0 };
 	cudaGraphicsResource* m_resource{ nullptr };
 
-	std::vector<float> m_shape_basis;
-	std::vector<float> m_albedo_basis;
-	std::vector<float> m_expression_basis;
-
 	//Face vertex and color data.
 	util::DeviceArray<glm::vec3> m_average_face_gpu;
 	util::DeviceArray<glm::vec3> m_current_face_gpu;
