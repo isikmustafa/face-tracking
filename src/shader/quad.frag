@@ -15,6 +15,6 @@ void main()
 	}
 	else
 	{
-		color = texture(background, tex_coord);
+		color = texture(background, vec2(tex_coord.x, 1.0f - tex_coord.y));
 	}
 }

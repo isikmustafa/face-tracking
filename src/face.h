@@ -18,12 +18,11 @@ public:
 	struct GraphicsSettings
 	{
 		GLuint framebuffer{ 0 };
+		GLuint rt_rgb{ 0 };
 		cudaGraphicsResource_t rt_rgb_cuda_resource{ nullptr };
 		cudaGraphicsResource_t rt_barycentrics_cuda_resource{ nullptr };
 		cudaGraphicsResource_t rt_vertex_ids_cuda_resource{ nullptr };
 		const GLSLProgram* shader{ nullptr };
-		int screen_width{ 0 };
-		int screen_height{ 0 };
 		int texture_width{ 0 };
 		int texture_height{ 0 };
 		bool mapped_to_cuda{ false };

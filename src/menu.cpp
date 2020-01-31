@@ -17,6 +17,8 @@ void Menu::attach(std::function<void()> func)
 
 void Menu::draw() const
 {
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	//Start a new frame.
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
@@ -33,6 +35,8 @@ void Menu::draw() const
 	{
 		func();
 	}
+
+	ImGui::End();
 
 	//Render.
 	ImGui::Render();
