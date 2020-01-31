@@ -64,9 +64,11 @@ public:
 	glm::vec3& getTranslationCoefficients() { return m_translation_coefficients; }
 	const glm::vec3& getTranslationCoefficients() const { return m_translation_coefficients; }
 
+	unsigned int getNumberOfVertices() const { return m_number_of_vertices; }
+
 private:
 	friend class GaussNewtonSolver;
-
+	friend class Application; 
 private:
 	GraphicsSettings m_graphics_settings;
 

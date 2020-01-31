@@ -52,5 +52,5 @@ private:
 	void initMenuWidgets();
 	void reloadShaders();
 	void draw(cv::Mat& frame);
-	void saveVideoFrame(cv::Mat& frame);
+	void saveVideoFrame(cv::Mat& frame, std::vector<glm::vec2>& features = std::vector<glm::vec2>());
 };
