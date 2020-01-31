@@ -44,7 +44,7 @@ void GaussNewtonSolver::solve(const std::vector<glm::vec2>& sparse_features, Fac
 	const float wDense = std::powf(10, m_params.dense_weight_exponent);
 	const float wReg = std::powf(10, m_params.regularisation_weight_exponent);
 
-	for (int pyramid_level = number_of_levels - 1; pyramid_level >= 2; pyramid_level--)
+	for (int pyramid_level = number_of_levels - 1; pyramid_level >= 0; pyramid_level--)
 	{
 		pyramid.setGraphicsSettings(pyramid_level, face.getGraphicsSettings());
 
