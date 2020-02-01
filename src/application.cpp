@@ -1,4 +1,5 @@
 #include "application.h"
+#include "prior_sparse_features.h"
 
 #include <imgui.h>
 #include <glm/gtx/euler_angles.hpp>
@@ -11,11 +12,10 @@
 
 constexpr int kNumOfPyramidLevels = 3;
 
-
 static std::string kMorphableModelPath("../MorphableModel/");
 
 Application::Application()
-	//: m_camera(cv::VideoCapture(0))
+//: m_camera(cv::VideoCapture(0))
 	: m_camera(cv::VideoCapture("./demo1.mp4"))
 	, m_screen_width(m_camera.get(3))
 	, m_screen_height(m_camera.get(4))
@@ -38,7 +38,6 @@ void Application::run()
 	initGraphics();
 	initMenuWidgets();
 	reloadShaders();
-
 
 	while (!glfwWindowShouldClose(m_window.getGLFWWindow()))
 	{
@@ -294,30 +293,29 @@ void Application::saveVideoFrame(cv::Mat& frame, std::vector<glm::vec2>& feature
 
 	if (!features.empty())
 	{
-		auto color = cv::Scalar(0, 255, 0); 
-		auto radius = 2; 
-		auto thickness = 1; 
+		cv::Scalar color(0, 255, 0);
+		auto radius = 2;
+		auto thickness = 1;
 		for (auto v : features)
 		{
-			v.x = (v.x + 1) / 2 * m_video_width/2; 
-			v.y = (1 - v.y) / 2 * m_video_height;
-			cv::circle(video_frame, cv::Point(v.x + m_video_width/2, v.y), radius, color, thickness); 
+			v.x = (v.x + 1.0f) * 0.5f * (m_video_width / 2);
+			v.y = (-v.y + 1.0f) * 0.5f * m_video_height;
+			cv::circle(video_frame, cv::Point(v.x + m_video_width / 2, v.y), radius, color, thickness);
 		}
-		const auto& ids = PriorSparseFeatures::get().getPriorIds(); 
 
-		std::vector<glm::vec3> face(m_face.getNumberOfVertices()); 
-		util::copy(face, m_face.m_current_face_gpu, m_face.getNumberOfVertices());
+		std::vector<glm::vec3> face(m_face.getNumberOfVertices());
+		util::copy(face, m_face.getCurrentFaceGpu(), m_face.getNumberOfVertices());
 
-		for (auto i : ids)
+		const auto& ids = PriorSparseFeatures::get().getPriorIds();
+		for (auto id : ids)
 		{
-			glm::vec4 v = m_projection * m_face.computeModelMatrix() * glm::vec4(face[i],1); 
-			v /= v.w; 
-			v.x = (v.x+1)/2 * m_video_width/2;
-			v.y = (1 - v.y)/2 * m_video_height;
+			glm::vec4 v = m_projection * m_face.computeModelMatrix() * glm::vec4(face[id], 1.0f);
+			v /= v.w;
+			v.x = (v.x + 1.0f) * 0.5f * (m_video_width / 2);
+			v.y = (-v.y + 1.0f) * 0.5f * m_video_height;
 			cv::circle(video_frame, cv::Point(v.x, v.y), radius, color, thickness);
 		}
 	}
-	//cv::imshow("d", video_frame); 
 	m_video_writer.write(video_frame);
 
 	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &m_video_texture_resource, 0));

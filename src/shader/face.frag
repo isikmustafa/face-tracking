@@ -29,7 +29,6 @@ void main()
 	fragment_color = vec4(light * frag.albedo, 1.0f);
 	barycentrics = vec4(frag.barycentrics, light);
 	vertex_indices = ivec4(frag.ids, 0);
-
 }
 
 float computeSH(vec3 dir)
