@@ -10,7 +10,7 @@
 
 //#define TEST_TEXTURE
 
-__global__ void cuComputeJacobian(
+__global__ void cuComputeJacobianSparseDense(
 	//shared memory
 	FaceBoundingBox face_bb,
 	const int nFeatures, const int imageWidth, const int imageHeight,
@@ -168,7 +168,7 @@ __global__ void cuComputeJacobian(
 		bands(0, 7) = normal_glm.x * normal_glm.z;
 		bands(0, 8) = normal_glm.x * normal_glm.x - normal_glm.y * normal_glm.y;
 
-		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs, 3, 9) = wDense * albedo * bands;
+		jacobian.block<3, 9>(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs) = (wDense * albedo) * bands;
 
 		//Pose
 		Eigen::Matrix<float, 1, 3> dlight_dnormal;
@@ -179,7 +179,7 @@ __global__ void cuComputeJacobian(
 
 		Eigen::Matrix<float, 3, 3> unnormnormal_jacobian = albedo * dlight_dnormal * dnormal_dunnormnormal;
 
-		/*Eigen::Matrix<float, 3, 3> dnormal_dunnormnormal_sum = Eigen::MatrixXf::Zero(3, 3);
+		Eigen::Matrix<float, 3, 3> dnormal_dunnormnormal_sum = Eigen::MatrixXf::Zero(3, 3);
 		//For 1st vertex normal
 		jacobian_util::computeNormalizationJacobian(dnormal_dunnormnormal, normal_a_unnorm_glm);
 		dnormal_dunnormnormal_sum += barycentrics_sampled.x * dnormal_dunnormnormal;
@@ -201,7 +201,7 @@ __global__ void cuComputeJacobian(
 			dx[1], dy[1], dz[1],
 			dx[2], dy[2], dz[2];
 
-		jacobian.block(offset_rows + current_index * 3, 1, 3, 3) = unnormnormal_jacobian * dnormal_dunnormnormal_sum * jacobian_rotation * wDense;*/
+		jacobian.block<3, 3>(offset_rows + current_index * 3, 1) = unnormnormal_jacobian * dnormal_dunnormnormal_sum * jacobian_rotation * wDense;
 
 		//Shape and expression
 		Eigen::Matrix<float, 3, 3> v0_jacobian;
@@ -237,7 +237,7 @@ __global__ void cuComputeJacobian(
 
 		//Derivative of source image with respect to (u,v)
 		//TODO: Check for boundary for xp and yp
-		Eigen::Matrix<float, 3, 2> jacobian_uv = Eigen::MatrixXf::Zero(3, 2);
+		Eigen::Matrix<float, 3, 2> jacobian_uv;
 
 		int background_index_left = 3 * (xp - 1 + yp * imageWidth);
 		int background_index_right = 3 * (xp + 1 + yp * imageWidth);
@@ -251,11 +251,13 @@ __global__ void cuComputeJacobian(
 		jacobian_uv(2, 1) = (image[background_index_down + 2] / 255.0f - image[background_index_up + 2] / 255.0f) *  0.25f  * imageHeight;
 
 		//Jacobian for homogenization (AKA division by w)
-		Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
+		Eigen::Matrix<float, 2, 3> jacobian_proj;
 		auto one_over_wp = 1.0f / proj_coord.w;
 		jacobian_proj(0, 0) = one_over_wp;
+		jacobian_proj(0, 1) = 0.0f;
 		jacobian_proj(0, 2) = -proj_coord.x * one_over_wp * one_over_wp;
 
+		jacobian_proj(1, 0) = 0.0f;
 		jacobian_proj(1, 1) = one_over_wp;
 		jacobian_proj(1, 2) = -proj_coord.y * one_over_wp * one_over_wp;
 
@@ -271,9 +273,9 @@ __global__ void cuComputeJacobian(
 		jacobian.block<3, 1>(offset_rows + current_index * 3, 0) = jacobian_uv * jacobian_proj * jacobian_intrinsics * wDense;
 
 		//Derivative of world coordinates with respect to rotation coefficients
-		auto dx = drx * local_coord;
-		auto dy = dry * local_coord;
-		auto dz = drz * local_coord;
+		dx = drx * local_coord;
+		dy = dry * local_coord;
+		dz = drz * local_coord;
 
 		Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
 		jacobian_pose(0, 3) = 1.0f;
@@ -290,7 +292,7 @@ __global__ void cuComputeJacobian(
 		jacobian_pose(2, 2) = dz[2];
 
 		auto jacobian_proj_world = jacobian_uv * jacobian_proj * jacobian_world;
-		jacobian.block<3, 6>(offset_rows + current_index * 3, 1) = jacobian_proj_world * jacobian_pose * wDense;
+		jacobian.block<3, 6>(offset_rows + current_index * 3, 1) += jacobian_proj_world * jacobian_pose * wDense;
 
 		//Derivative of world coordinates with respect to local coordinates.
 		//This is basically the rotation matrix.
@@ -325,11 +327,13 @@ __global__ void cuComputeJacobian(
 	residuals(i * 2 + 1) = residual.y * wSparse;
 
 	//Jacobian for homogenization (AKA division by w)
-	Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
+	Eigen::Matrix<float, 2, 3> jacobian_proj;
 	auto one_over_wp = 1.0f / proj_coord.w;
 	jacobian_proj(0, 0) = one_over_wp;
+	jacobian_proj(0, 1) = 0.0f;
 	jacobian_proj(0, 2) = -proj_coord.x * one_over_wp * one_over_wp;
 
+	jacobian_proj(1, 0) = 0.0f;
 	jacobian_proj(1, 1) = one_over_wp;
 	jacobian_proj(1, 2) = -proj_coord.y * one_over_wp * one_over_wp;
 
@@ -464,7 +468,7 @@ void GaussNewtonSolver::computeJacobian(
 
 	util::DeviceArray<float> temp_memory(imageWidth * imageHeight * 3);
 
-	auto time = util::runKernelGetExecutionTime([&]() {cuComputeJacobian << <block, threads >> > (
+	auto time = util::runKernelGetExecutionTime([&]() {cuComputeJacobianSparseDense << <block, threads >> > (
 		//shared memory
 		face_bb,
 		nFeatures, imageWidth, imageHeight,
