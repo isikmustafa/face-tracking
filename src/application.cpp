@@ -11,6 +11,7 @@
 
 constexpr int kNumOfPyramidLevels = 3;
 
+
 static std::string kMorphableModelPath("../MorphableModel/");
 
 Application::Application()
@@ -37,6 +38,7 @@ void Application::run()
 	initGraphics();
 	initMenuWidgets();
 	reloadShaders();
+
 
 	while (!glfwWindowShouldClose(m_window.getGLFWWindow()))
 	{
@@ -66,7 +68,8 @@ void Application::run()
 		m_face.draw();
 
 		draw(raw_frame);
-		saveVideoFrame(raw_frame);
+		//saveVideoFrame(raw_frame); // pass sparse_features, if you want to render them 
+		saveVideoFrame(raw_frame, sparse_features);
 		m_menu.draw();
 		m_window.refresh();
 
@@ -259,7 +262,7 @@ void Application::draw(cv::Mat& frame)
 	glBindVertexArray(0);
 }
 
-void Application::saveVideoFrame(cv::Mat& frame)
+void Application::saveVideoFrame(cv::Mat& frame, std::vector<glm::vec2>& features)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, m_video_framebuffer);
 	glViewport(0, 0, m_video_width, m_video_height);
@@ -289,6 +292,32 @@ void Application::saveVideoFrame(cv::Mat& frame)
 	cv::Mat video_frame(cv::Size(m_video_width, m_video_height), CV_8UC4);
 	CHECK_CUDA_ERROR(cudaMemcpyFromArray(video_frame.data, video_array, 0, 0, m_video_width * m_video_height * 4, cudaMemcpyDeviceToHost));
 
+	if (!features.empty())
+	{
+		auto color = cv::Scalar(0, 255, 0); 
+		auto radius = 2; 
+		auto thickness = 1; 
+		for (auto v : features)
+		{
+			v.x = (v.x + 1) / 2 * m_video_width/2; 
+			v.y = (1 - v.y) / 2 * m_video_height;
+			cv::circle(video_frame, cv::Point(v.x + m_video_width/2, v.y), radius, color, thickness); 
+		}
+		const auto& ids = PriorSparseFeatures::get().getPriorIds(); 
+
+		std::vector<glm::vec3> face(m_face.getNumberOfVertices()); 
+		util::copy(face, m_face.m_current_face_gpu, m_face.getNumberOfVertices());
+
+		for (auto i : ids)
+		{
+			glm::vec4 v = m_projection * m_face.computeModelMatrix() * glm::vec4(face[i],1); 
+			v /= v.w; 
+			v.x = (v.x+1)/2 * m_video_width/2;
+			v.y = (1 - v.y)/2 * m_video_height;
+			cv::circle(video_frame, cv::Point(v.x, v.y), radius, color, thickness);
+		}
+	}
+	//cv::imshow("d", video_frame); 
 	m_video_writer.write(video_frame);
 
 	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &m_video_texture_resource, 0));
