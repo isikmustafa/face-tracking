@@ -30,8 +30,8 @@ std::vector<glm::vec2> Tracker::getSparseFeatures(const cv::Mat& frame)
 
 		dlib::full_object_detection shape = m_pose_model(cimg, faces[0]);
 
-		const dlib::rgb_pixel color = dlib::rgb_pixel(0, 255, 0);
-		std::vector<dlib::image_window::overlay_circle> circles;
+		//const dlib::rgb_pixel color = dlib::rgb_pixel(0, 255, 0);
+		//std::vector<dlib::image_window::overlay_circle> circles;
 
 		auto frame_size = frame.size();
 		auto two_over_width = 2.0f / static_cast<float>(frame_size.width);
@@ -39,18 +39,18 @@ std::vector<glm::vec2> Tracker::getSparseFeatures(const cv::Mat& frame)
 		for (unsigned long i = 0; i < 60; ++i)
 		{
 			const dlib::point& point = shape.part(i);
-			circles.emplace_back(point, 2, color);
+			//circles.emplace_back(point, 2, color);
 
 			//Normalize sparse feature positions such that left-bottom corner is (-1, -1) and top-right corner is (+1, +1).
 			//This is the OpenGL convention.
 			sparse_features.emplace_back(point.x() * two_over_width - 1.0f, 1.0f - point.y() * two_over_height);
 		}
 
-		m_window.clear_overlay();
-		m_window.set_image(cimg);
+		//m_window.clear_overlay();
+		//m_window.set_image(cimg);
 
-		m_window.add_overlay(circles);
-		m_window.add_overlay(render_face_detections(shape));
+		//m_window.add_overlay(circles);
+		//m_window.add_overlay(render_face_detections(shape));
 	}
 	catch (std::exception& e)
 	{

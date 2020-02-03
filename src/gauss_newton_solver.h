@@ -112,9 +112,6 @@ private:
 	void solveUpdatePCG(const cublasHandle_t& cublas, int nUnknowns, int nCurrentResiduals, int nResiduals, util::DeviceArray<float>& jacobian,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
-	void solveUpdateLU(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
-		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
-
 	void updateParameters(const std::vector<float>& result, glm::mat4& projection, float aspect_ratio, Face& face, int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs);
 
 	void mapRenderTargets(Face& face);

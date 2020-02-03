@@ -50,6 +50,8 @@ void Application::run()
 			reloadShaders();
 		}
 
+		//printUniqueFaceVerticesSparse();
+
 		cv::Mat raw_frame;
 		if (!m_camera.read(raw_frame))
 		{
@@ -319,4 +321,86 @@ void Application::saveVideoFrame(cv::Mat& frame, std::vector<glm::vec2>& feature
 	m_video_writer.write(video_frame);
 
 	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(1, &m_video_texture_resource, 0));
+}
+
+void Application::printUniqueFaceVerticesSparse()
+{
+	auto& graphics_settings = m_face.getGraphicsSettings();
+	m_pyramid.setGraphicsSettings(0, graphics_settings);
+	m_face.computeFace();
+	m_face.updateVertexBuffer();
+	m_face.draw();
+	glFinish();
+
+	cudaGraphicsResource* resources[] = { graphics_settings.rt_rgb_cuda_resource,
+		graphics_settings.rt_barycentrics_cuda_resource,
+		graphics_settings.rt_vertex_ids_cuda_resource };
+
+	CHECK_CUDA_ERROR(cudaGraphicsMapResources(3, resources, 0));
+
+	cudaArray* array_rgb{ nullptr };
+	cudaArray* array_barycentrics{ nullptr };
+	cudaArray* array_vertex_ids{ nullptr };
+
+	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&array_rgb, resources[0], 0, 0));
+	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&array_barycentrics, resources[1], 0, 0));
+	CHECK_CUDA_ERROR(cudaGraphicsSubResourceGetMappedArray(&array_vertex_ids, resources[2], 0, 0));
+
+	auto width = graphics_settings.texture_width;
+	auto height = graphics_settings.texture_height;
+	cv::Mat rgb_frame(cv::Size(width, height), CV_8UC4);
+	cv::Mat barycentrics_frame(cv::Size(width, height), CV_32FC4);
+	cv::Mat vertex_ids_frame(cv::Size(width, height), CV_32SC4);
+	cv::Mat rgb_frame_flipped(cv::Size(width, height), CV_8UC4);
+	cv::Mat barycentrics_frame_flipped(cv::Size(width, height), CV_32FC4);
+	cv::Mat vertex_ids_frame_flipped(cv::Size(width, height), CV_32SC4);
+
+	CHECK_CUDA_ERROR(cudaMemcpyFromArray(rgb_frame.data, array_rgb, 0, 0, width * height * 4, cudaMemcpyDeviceToHost));
+	CHECK_CUDA_ERROR(cudaMemcpyFromArray(barycentrics_frame_flipped.data, array_barycentrics, 0, 0, width * height * 4 * sizeof(float), cudaMemcpyDeviceToHost));
+	CHECK_CUDA_ERROR(cudaMemcpyFromArray(vertex_ids_frame_flipped.data, array_vertex_ids, 0, 0, width * height * 4 * sizeof(int), cudaMemcpyDeviceToHost));
+	cv::flip(rgb_frame, rgb_frame_flipped, 0);
+	cv::flip(barycentrics_frame_flipped, barycentrics_frame, 0);
+	cv::flip(vertex_ids_frame_flipped, vertex_ids_frame, 0);
+	cv::cvtColor(rgb_frame_flipped, rgb_frame, cv::COLOR_RGBA2RGB);
+
+	auto sparse_features = m_tracker.getSparseFeatures(rgb_frame);
+
+	//Some points are outside the "final.off" model. So, we have to offset them a bit to get a unique vertex from the face model.
+	//0 -> x+2
+	//1,3 -> x+1
+	//5,6,7 -> y-1, x+1
+	//8,9 -> y-2
+	//10,11,12 -> y-1, x-1
+	//13,15 -> x-1
+	//14,16 -> x-2
+	glm::ivec2 offsets[] = { {0, 2}, {0, 1}, {0, 0}, {0, 1}, {0, 0}, {-1, 1}, {-1, 1}, {-1, 1}, {-2, 0}, {-2, 0}, {-1, -1}, {-1, -1}, {-1, -1}, {0, -1}, {0, -2}, {0, -1}, {0, -2} };
+	int index = 0;
+	for (auto v : sparse_features)
+	{
+		int x = (v.x + 1.0f) * 0.5f * width;
+		int y = (-v.y + 1.0f) * 0.5f * height;
+
+		if (index < 17)
+		{
+			y += offsets[index].x;
+			x += offsets[index].y;
+		}
+		++index;
+
+		auto vertex_ids = vertex_ids_frame.at<glm::ivec4>(y, x);
+		auto bary_coords = barycentrics_frame.at<glm::vec4>(y, x);
+
+		//We should select the vertex id corresponding to the largest barycentric coordinate.
+		int axis = bary_coords.z > bary_coords.y && bary_coords.z > bary_coords.x ? 2 : (bary_coords.y > bary_coords.x);
+		std::cout << vertex_ids[axis] << std::endl;
+
+		/*cv::Scalar color(0, 255, 0);
+		auto radius = 2;
+		auto thickness = 1;
+		cv::circle(rgb_frame, cv::Point(x, y), radius, color, thickness);*/
+	}
+
+	//cv::imwrite("../../debug.png", rgb_frame);
+
+	CHECK_CUDA_ERROR(cudaGraphicsUnmapResources(3, resources, 0));
 }

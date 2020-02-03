@@ -53,11 +53,6 @@ Face::Face(const std::string& morphable_model_directory)
 	}
 	file.close();
 
-	for (auto id : PriorSparseFeatures::get().getPriorIds())
-	{
-		PriorSparseFeatures::get().addPriorPosition(positions[id]);
-	}
-
 	//We will only update position, color and normals of vertices. In order not to copy the constant texture coordinates,
 	//we dont allocate memory for them.
 	m_average_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 3);
