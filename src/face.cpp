@@ -14,7 +14,7 @@ Face::Face(const std::string& morphable_model_directory)
 	, m_rotation_coefficients(0.0f, 0.0f, 0.0f)
 	, m_translation_coefficients(0.0f, 0.0f, -0.4f)
 {
-	std::ifstream file(morphable_model_directory + "/final.off");
+	std::ifstream file(morphable_model_directory + "/nomouth.off");
 	std::string str_dummy;
 	file >> str_dummy;
 

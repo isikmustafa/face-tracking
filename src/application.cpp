@@ -39,7 +39,8 @@ void Application::run()
 	initMenuWidgets();
 	reloadShaders();
 
-	while (!glfwWindowShouldClose(m_window.getGLFWWindow()))
+	int number_of_frames = 24 * 15; //15 seconds
+	while (!glfwWindowShouldClose(m_window.getGLFWWindow()) && number_of_frames-- > 0)
 	{
 		auto start_frame = std::chrono::high_resolution_clock::now();
 
@@ -373,7 +374,7 @@ void Application::printUniqueFaceVerticesSparse()
 	//10,11,12 -> y-1, x-1
 	//13,15 -> x-1
 	//14,16 -> x-2
-	glm::ivec2 offsets[] = { {0, 2}, {0, 1}, {0, 0}, {0, 1}, {0, 0}, {-1, 1}, {-1, 1}, {-1, 1}, {-2, 0}, {-2, 0}, {-1, -1}, {-1, -1}, {-1, -1}, {0, -1}, {0, -2}, {0, -1}, {0, -2} };
+	glm::ivec2 offsets[] = { {1, 0}, {0, 0}, {0, 0}, {0, 1}, {0, 1}, {0 ,0}, {0 ,0}, {0 ,0}, {0 ,0}, {0 ,0}, {0 ,0}, {0 ,0}, {0 ,0}, {0 ,-1}, {0, 0}, {0, 0}, {1, 0} };
 	int index = 0;
 	for (auto v : sparse_features)
 	{
