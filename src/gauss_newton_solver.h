@@ -15,7 +15,7 @@ struct SolverParameters
 	float regularisation_weight_exponent = -4.6f;
 
 	int num_gn_iterations[3] = { 1, 5, 25 };
-	int num_pcg_iterations = 4;
+	int num_pcg_iterations = 5;
 
 	int num_shape_coefficients = 80;
 	int num_albedo_coefficients = 80;
@@ -110,9 +110,6 @@ private:
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
 	void solveUpdatePCG(const cublasHandle_t& cublas, int nUnknowns, int nCurrentResiduals, int nResiduals, util::DeviceArray<float>& jacobian,
-		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
-
-	void solveUpdateLU(const cublasHandle_t& cublas, int nUnknowns, int nResiduals, util::DeviceArray<float>& jacobian,
 		util::DeviceArray<float>& residuals, util::DeviceArray<float>& x, float alphaLHS = 1, float alphaRHS = 1);
 
 	void updateParameters(const std::vector<float>& result, glm::mat4& projection, float aspect_ratio, Face& face, int nShapeCoeffs, int nExpressionCoeffs, int nAlbedoCoeffs);

@@ -65,10 +65,11 @@ public:
 	const glm::vec3& getTranslationCoefficients() const { return m_translation_coefficients; }
 
 	unsigned int getNumberOfVertices() const { return m_number_of_vertices; }
+	const util::DeviceArray<glm::vec3>& getCurrentFaceGpu() const { return m_current_face_gpu; }
 
 private:
 	friend class GaussNewtonSolver;
-	friend class Application; 
+
 private:
 	GraphicsSettings m_graphics_settings;
 
@@ -78,10 +79,6 @@ private:
 	unsigned int m_number_of_vertices{ 0 };
 	unsigned int m_number_of_indices{ 0 };
 	cudaGraphicsResource* m_resource{ nullptr };
-
-	std::vector<float> m_shape_basis;
-	std::vector<float> m_albedo_basis;
-	std::vector<float> m_expression_basis;
 
 	//Face vertex and color data.
 	util::DeviceArray<glm::vec3> m_average_face_gpu;

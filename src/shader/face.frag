@@ -2,9 +2,9 @@
 
 in G2P
 {
-	vec3 normal;
-	vec3 albedo;
-	vec3 barycentrics; 
+	noperspective vec3 normal;
+	noperspective vec3 albedo;
+	noperspective vec3 barycentrics; 
 	flat ivec3 ids; 
 } frag;
 
@@ -29,7 +29,6 @@ void main()
 	fragment_color = vec4(light * frag.albedo, 1.0f);
 	barycentrics = vec4(frag.barycentrics, light);
 	vertex_indices = ivec4(frag.ids, 0);
-
 }
 
 float computeSH(vec3 dir)

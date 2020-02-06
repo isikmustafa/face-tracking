@@ -1,7 +1,6 @@
 #pragma once
 
 #include "util.h"
-#include "prior_sparse_features.h"
 
 #include <assert.h>
 #include <vector>

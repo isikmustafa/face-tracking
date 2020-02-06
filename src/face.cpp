@@ -14,7 +14,7 @@ Face::Face(const std::string& morphable_model_directory)
 	, m_rotation_coefficients(0.0f, 0.0f, 0.0f)
 	, m_translation_coefficients(0.0f, 0.0f, -0.4f)
 {
-	std::ifstream file(morphable_model_directory + "/averageMesh2.off");
+	std::ifstream file(morphable_model_directory + "/nomouth.off");
 	std::string str_dummy;
 	file >> str_dummy;
 
@@ -52,11 +52,6 @@ Face::Face(const std::string& morphable_model_directory)
 		faces[i].z = indices[i * 3 + 2];
 	}
 	file.close();
-
-	for (auto id : PriorSparseFeatures::get().getPriorIds())
-	{
-		PriorSparseFeatures::get().addPriorPosition(positions[id]);
-	}
 
 	//We will only update position, color and normals of vertices. In order not to copy the constant texture coordinates,
 	//we dont allocate memory for them.
@@ -107,34 +102,34 @@ Face::Face(const std::string& morphable_model_directory)
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-	m_shape_basis = loadModelData(morphable_model_directory + "/ShapeBasis_modified.matrix", true);
+	std::vector<float> shape_basis = loadModelData(morphable_model_directory + "/ShapeBasis_modified.matrix", true);
 	auto shape_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationShape.vec", false);
 	m_shape_coefficients.resize(shape_std_dev.size(), 0.0f);
-	Eigen::Map<Eigen::MatrixXf> shape_basis_eigen(m_shape_basis.data(), m_number_of_vertices * 3, m_shape_coefficients.size());
+	Eigen::Map<Eigen::MatrixXf> shape_basis_eigen(shape_basis.data(), m_number_of_vertices * 3, m_shape_coefficients.size());
 	Eigen::Map<Eigen::VectorXf> shape_std_dev_eigen(shape_std_dev.data(), shape_std_dev.size());
 	shape_basis_eigen = shape_basis_eigen.array().rowwise() * shape_std_dev_eigen.transpose().array();
 
-	m_shape_basis_gpu = util::DeviceArray<float>(m_shape_basis);
+	m_shape_basis_gpu = util::DeviceArray<float>(shape_basis);
 	m_shape_coefficients_gpu = util::DeviceArray<float>(m_shape_coefficients.size());
 
-	m_albedo_basis = loadModelData(morphable_model_directory + "/AlbedoBasis_modified.matrix", true);
+	std::vector<float> albedo_basis = loadModelData(morphable_model_directory + "/AlbedoBasis_modified.matrix", true);
 	auto albedo_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationAlbedo.vec", false);
 	m_albedo_coefficients.resize(albedo_std_dev.size(), 0.0f);
-	Eigen::Map<Eigen::MatrixXf> albedo_basis_eigen(m_albedo_basis.data(), m_number_of_vertices * 3, m_albedo_coefficients.size());
+	Eigen::Map<Eigen::MatrixXf> albedo_basis_eigen(albedo_basis.data(), m_number_of_vertices * 3, m_albedo_coefficients.size());
 	Eigen::Map<Eigen::VectorXf> albedo_std_dev_dev_eigen(albedo_std_dev.data(), albedo_std_dev.size());
 	albedo_basis_eigen = albedo_basis_eigen.array().rowwise() * albedo_std_dev_dev_eigen.transpose().array();
 
-	m_albedo_basis_gpu = util::DeviceArray<float>(m_albedo_basis);
+	m_albedo_basis_gpu = util::DeviceArray<float>(albedo_basis);
 	m_albedo_coefficients_gpu = util::DeviceArray<float>(m_albedo_coefficients.size());
 
-	m_expression_basis = loadModelData(morphable_model_directory + "/ExpressionBasis_modified.matrix", true);
+	std::vector<float> expression_basis = loadModelData(morphable_model_directory + "/ExpressionBasis_modified.matrix", true);
 	auto expression_std_dev = loadModelData(morphable_model_directory + "/StandardDeviationExpression.vec", false);
 	m_expression_coefficients.resize(expression_std_dev.size(), 0.0f);
-	Eigen::Map<Eigen::MatrixXf> expression_basis_eigen(m_expression_basis.data(), m_number_of_vertices * 3, m_expression_coefficients.size());
+	Eigen::Map<Eigen::MatrixXf> expression_basis_eigen(expression_basis.data(), m_number_of_vertices * 3, m_expression_coefficients.size());
 	Eigen::Map<Eigen::VectorXf> expression_std_dev_dev_eigen(expression_std_dev.data(), expression_std_dev.size());
 	expression_basis_eigen = expression_basis_eigen.array().rowwise() * expression_std_dev_dev_eigen.transpose().array();
 
-	m_expression_basis_gpu = util::DeviceArray<float>(m_expression_basis);
+	m_expression_basis_gpu = util::DeviceArray<float>(expression_basis);
 	m_expression_coefficients_gpu = util::DeviceArray<float>(m_expression_coefficients.size());
 
 	cublasCreate(&m_cublas);
