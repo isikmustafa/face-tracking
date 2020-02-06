@@ -2,9 +2,9 @@
 
 in G2P
 {
-	vec3 normal;
-	vec3 albedo;
-	vec3 barycentrics; 
+	noperspective vec3 normal;
+	noperspective vec3 albedo;
+	noperspective vec3 barycentrics; 
 	flat ivec3 ids; 
 } frag;
 

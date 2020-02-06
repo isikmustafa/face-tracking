@@ -16,12 +16,12 @@ static std::string kMorphableModelPath("../MorphableModel/");
 
 Application::Application()
 //: m_camera(cv::VideoCapture(0))
-	: m_camera(cv::VideoCapture("./demo1.mp4"))
+	: m_camera(cv::VideoCapture("./demo2.mp4"))
 	, m_screen_width(m_camera.get(3))
 	, m_screen_height(m_camera.get(4))
 	, m_gui_position(0, 0)
 	, m_gui_size(300, m_screen_height)
-	, m_projection(glm::perspectiveRH_NO(glm::radians(75.0f), static_cast<float>(m_screen_width) / m_screen_height, 0.01f, 10.0f))
+	, m_projection(glm::perspectiveRH_NO(glm::radians(60.0f), static_cast<float>(m_screen_width) / m_screen_height, 0.01f, 10.0f))
 	, m_window(m_gui_size.x, m_screen_width, m_screen_height)
 	, m_face(kMorphableModelPath)
 	, m_solver()
@@ -40,7 +40,7 @@ void Application::run()
 	reloadShaders();
 
 	int number_of_frames = 24 * 15; //15 seconds
-	while (!glfwWindowShouldClose(m_window.getGLFWWindow()) && number_of_frames-- > 0)
+	while (!glfwWindowShouldClose(m_window.getGLFWWindow())/* && number_of_frames-- > 0*/)
 	{
 		auto start_frame = std::chrono::high_resolution_clock::now();
 
@@ -70,8 +70,8 @@ void Application::run()
 		m_face.draw();
 
 		draw(raw_frame);
-		//saveVideoFrame(raw_frame); // pass sparse_features, if you want to render them 
-		saveVideoFrame(raw_frame, sparse_features);
+		saveVideoFrame(raw_frame); // pass sparse_features, if you want to render them 
+		//saveVideoFrame(raw_frame, sparse_features);
 		m_menu.draw();
 		m_window.refresh();
 
