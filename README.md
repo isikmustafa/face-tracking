@@ -2,12 +2,12 @@
 
 Results
 
-On the left you can see a face reconstruction based on the input video from the right
+On the left you can see a face reconstruction based on the input video from the right  
 
-Barack Obama
-![](results/Obama.gif)
+Barack Obama  
+![](results/Obama.gif)  
 
-Justin Trudeau
+Justin Trudeau  
 ![](results/Trudeau.gif)
 
 Setup configuration
@@ -15,7 +15,7 @@ Setup configuration
 Environment variables
 
 Side notes:
-To run the project you will need a paramteric face mode
+***To run the project you will need a paramteric face mode***
 Use `OpenCV 4.0.0`
 
 | NAME            | EXAMPLE VALUE                                                 |
