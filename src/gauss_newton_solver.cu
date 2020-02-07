@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "gauss_newton_solver.h"
 #include "util.h"
@@ -125,17 +125,40 @@ __global__ void cuComputeJacobianSparseDense(
 		frame_rgb.z() = image[background_index + 2] / 255.0f;
 
 		Eigen::Vector3f residual = face_rgb - frame_rgb;
-		wDense /= glm::sqrt(glm::max(residual.norm(), 1.0e-8f)); //IRLS with L1 norm.
+
+		// IRLS with L1 norm.
+		wDense /= glm::sqrt(glm::max(residual.norm(), 1.0e-8f));
 
 		residuals.block(offset_rows + current_index * 3, 0, 3, 1) = residual * wDense;
 
-		//Albedo
+		/*
+		 * Photo-Consistency energy term
+		 * E = sum(l1_norm(C_S - C_I))
+		 * where C_S is synthesized image
+		 *	     C_I is input RGB image
+		 *
+		 * Energy derivation
+		 * dE/dC_I
+		 * The derivative with respect to source image (frame_rgb)
+		 * Fragment shader derivation
+		 *
+		 * Albedo derivation
+		 * Color = Light * Albedo
+		 * Albedo = A(E_alb_A * β) + B(E_alb_B * β) + C(E_alb_C * β) => barycentric coordinates
+		 * dColor/dAlbedo
+		 */
 		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) =
 			(barycentrics_sampled.w * wDense * barycentrics_sampled.x) * albedo_basis.block(3 * vertex_ids_sampled.x, 0, 3, nAlbedoCoeffs) +
 			(barycentrics_sampled.w * wDense * barycentrics_sampled.y) * albedo_basis.block(3 * vertex_ids_sampled.y, 0, 3, nAlbedoCoeffs) +
 			(barycentrics_sampled.w * wDense * barycentrics_sampled.z) * albedo_basis.block(3 * vertex_ids_sampled.z, 0, 3, nAlbedoCoeffs);
 
-		//SH
+		/*
+		 * Spherical harmonics derivation
+		 * Color = SH(normal) * Albedo
+		 * dSH/d{9 coefficients}
+		 *
+		 * see file /shaders/face.frag computeSH(normal)
+		 */
 		auto number_of_vertices = nVerticesTimes3 / 3;
 		auto albedos = current_face + number_of_vertices;
 		auto normals = current_face + 2 * number_of_vertices;
@@ -155,6 +178,7 @@ __global__ void cuComputeJacobianSparseDense(
 		Eigen::Vector3f albedo;
 		albedo << albedo_glm.x, albedo_glm.y, albedo_glm.z;
 
+		// dSH/d{9 coefficients}
 		Eigen::Matrix<float, 1, 9> bands(9);
 		bands(0, 0) = 1.0f;
 		bands(0, 1) = normal_glm.y;
@@ -168,7 +192,16 @@ __global__ void cuComputeJacobianSparseDense(
 
 		jacobian.block<3, 9>(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs) = (wDense * albedo) * bands;
 
-		//Pose
+		/* Expression and shape derivations
+		 * Triangle = (A, B, C)
+		 * Normal{X, Y, Z} = normalize(cross(B - A, C - A))
+		 * Color = SH(Normal) * Albedo
+		 * @ref https://www.lighthouse3d.com/tutorials/glsl-12-tutorial/normalization-issues/
+		 *
+		 * dColor/dα and dColor/dδ
+		 *
+		 * dColor/dα = dColor/dSH * dSH/dNormal * dNormal/dNormalize() * dNormalize/dCross() * dCross()/d{(B - A), (C - A), A}
+		 */
 		Eigen::Matrix<float, 1, 3> dlight_dnormal;
 		jacobian_util::computeDLightDNormal(dlight_dnormal, normal_glm, p_coefficients_sh);
 
@@ -178,6 +211,32 @@ __global__ void cuComputeJacobianSparseDense(
 		Eigen::Matrix<float, 3, 3> unnormnormal_jacobian = albedo * dlight_dnormal * dnormal_dunnormnormal;
 
 		Eigen::Matrix<float, 3, 3> dnormal_dunnormnormal_sum = Eigen::MatrixXf::Zero(3, 3);
+
+		//Shape and expression
+		Eigen::Matrix<float, 3, 3> v0_jacobian;
+		Eigen::Matrix<float, 3, 3> v1_jacobian;
+		Eigen::Matrix<float, 3, 3> v2_jacobian;
+
+		jacobian_util::computeNormalJacobian(v0_jacobian, v1_jacobian, v2_jacobian,
+			current_face[vertex_ids_sampled.x], current_face[vertex_ids_sampled.y], current_face[vertex_ids_sampled.z]);
+
+		unnormnormal_jacobian = wDense * unnormnormal_jacobian * jacobian_local;
+		v0_jacobian = unnormnormal_jacobian * v0_jacobian;
+		v1_jacobian = unnormnormal_jacobian * v1_jacobian;
+		v2_jacobian = unnormnormal_jacobian * v2_jacobian;
+
+		// dColor/dα
+		jacobian.block(offset_rows + current_index * 3, 7, 3, nShapeCoeffs) =
+			v0_jacobian * shape_basis.block(3 * vertex_ids_sampled.x, 0, 3, nShapeCoeffs) +
+			v1_jacobian * shape_basis.block(3 * vertex_ids_sampled.y, 0, 3, nShapeCoeffs) +
+			v2_jacobian * shape_basis.block(3 * vertex_ids_sampled.z, 0, 3, nShapeCoeffs);
+
+		// dColor/dδ
+		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) =
+			v0_jacobian * expression_basis.block(3 * vertex_ids_sampled.x, 0, 3, nExpressionCoeffs) +
+			v1_jacobian * expression_basis.block(3 * vertex_ids_sampled.y, 0, 3, nExpressionCoeffs) +
+			v2_jacobian * expression_basis.block(3 * vertex_ids_sampled.z, 0, 3, nExpressionCoeffs);
+
 		//For 1st vertex normal
 		jacobian_util::computeNormalizationJacobian(dnormal_dunnormnormal, normal_a_unnorm_glm);
 		dnormal_dunnormnormal_sum += barycentrics_sampled.x * dnormal_dunnormnormal;
@@ -201,31 +260,13 @@ __global__ void cuComputeJacobianSparseDense(
 
 		jacobian.block<3, 3>(offset_rows + current_index * 3, 1) = unnormnormal_jacobian * dnormal_dunnormnormal_sum * jacobian_rotation * wDense;
 
-		//Shape and expression
-		Eigen::Matrix<float, 3, 3> v0_jacobian;
-		Eigen::Matrix<float, 3, 3> v1_jacobian;
-		Eigen::Matrix<float, 3, 3> v2_jacobian;
+		/* Energy derivation
+		 * dE/dC_I
+		 * The derivative with respect to source image (frame_rgb)
+		 * Full perspective derivation
+		 */
 
-		jacobian_util::computeNormalJacobian(v0_jacobian, v1_jacobian, v2_jacobian,
-			current_face[vertex_ids_sampled.x], current_face[vertex_ids_sampled.y], current_face[vertex_ids_sampled.z]);
-
-		unnormnormal_jacobian = wDense * unnormnormal_jacobian * jacobian_local;
-		v0_jacobian = unnormnormal_jacobian * v0_jacobian;
-		v1_jacobian = unnormnormal_jacobian * v1_jacobian;
-		v2_jacobian = unnormnormal_jacobian * v2_jacobian;
-
-		jacobian.block(offset_rows + current_index * 3, 7, 3, nShapeCoeffs) =
-			v0_jacobian * shape_basis.block(3 * vertex_ids_sampled.x, 0, 3, nShapeCoeffs) +
-			v1_jacobian * shape_basis.block(3 * vertex_ids_sampled.y, 0, 3, nShapeCoeffs) +
-			v2_jacobian * shape_basis.block(3 * vertex_ids_sampled.z, 0, 3, nShapeCoeffs);
-
-		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) =
-			v0_jacobian * expression_basis.block(3 * vertex_ids_sampled.x, 0, 3, nExpressionCoeffs) +
-			v1_jacobian * expression_basis.block(3 * vertex_ids_sampled.y, 0, 3, nExpressionCoeffs) +
-			v2_jacobian * expression_basis.block(3 * vertex_ids_sampled.z, 0, 3, nExpressionCoeffs);
-
-		//Below is the derivative with respect to source image (frame_rgb)
-		//Pose
+		 //Pose
 		auto local_coord = barycentrics_sampled.x * current_face[vertex_ids_sampled.x] +
 			barycentrics_sampled.y * current_face[vertex_ids_sampled.y] +
 			barycentrics_sampled.z * current_face[vertex_ids_sampled.z];
@@ -497,7 +538,7 @@ void GaussNewtonSolver::computeJacobian(
 		//device memory output
 		p_jacobian, p_residuals
 		);
-		});
+	});
 	std::cout << "Jacobian kernel time: " << time << std::endl;
 
 	cudaDeviceSynchronize();
