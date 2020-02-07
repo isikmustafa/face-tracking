@@ -225,7 +225,6 @@ __global__ void cuComputeJacobianSparseDense(
 
 		Eigen::Matrix<float, 3, 3> dnormal_dunnormnormal_sum = Eigen::MatrixXf::Zero(3, 3);
 
-		//Shape and expression
 		Eigen::Matrix<float, 3, 3> v0_jacobian;
 		Eigen::Matrix<float, 3, 3> v1_jacobian;
 		Eigen::Matrix<float, 3, 3> v2_jacobian;
@@ -250,15 +249,15 @@ __global__ void cuComputeJacobianSparseDense(
 			v1_jacobian * expression_basis.block(3 * vertex_ids_sampled.y, 0, 3, nExpressionCoeffs) +
 			v2_jacobian * expression_basis.block(3 * vertex_ids_sampled.z, 0, 3, nExpressionCoeffs);
 
-		//For 1st vertex normal
+		// For 1st vertex normal
 		jacobian_util::computeNormalizationJacobian(dnormal_dunnormnormal, normal_a_unnorm_glm);
 		dnormal_dunnormnormal_sum += barycentrics_sampled.x * dnormal_dunnormnormal;
 
-		//For 2nd vertex normal
+		// For 2nd vertex normal
 		jacobian_util::computeNormalizationJacobian(dnormal_dunnormnormal, normal_b_unnorm_glm);
 		dnormal_dunnormnormal_sum += barycentrics_sampled.y * dnormal_dunnormnormal;
 
-		//For 3rd vertex normal
+		// For 3rd vertex normal
 		jacobian_util::computeNormalizationJacobian(dnormal_dunnormnormal, normal_c_unnorm_glm);
 		dnormal_dunnormnormal_sum += barycentrics_sampled.z * dnormal_dunnormnormal;
 
@@ -358,7 +357,7 @@ __global__ void cuComputeJacobianSparseDense(
 		 * Since this node (world space) in our computation graph is common for [R, T] as well as expression and shape
 		 * we can branch the calculations out and derive jacobian_pose first.
 		 * World coordinates => Local coordinates
-		 * X_world = R * X_local+T
+		 * X_world = R * X_local + T
 		 * dX_world/dR and dX_world/dT
 		 */
 		dx = drx * local_coord;
@@ -410,7 +409,7 @@ __global__ void cuComputeJacobianSparseDense(
 	 * Sparse terms for Feature Alignment
 	 * Feature similarity between a set of salient facial feature point pairs detect
 	 * 
-	 * E = sum(l2_norm(f - proj(local_coord))
+	 * E = sum(l2_norm(f - Π(Φ(local_coord)))
 	 */
 	auto vertex_id = prior_local_ids[i];
 	auto local_coord = current_face[vertex_id];
