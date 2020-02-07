@@ -8,6 +8,11 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 
+/**
+ * Compute Jacobian matrix for parametric model w.r.t fov of virtual camera, Rotation, Translation, α, β, δ, γ
+ * (α, β, δ) are parametric model Eigen basis scaling factors
+ * γ is illumination model (Spherical harmonics)
+ */
 __global__ void cuComputeJacobianSparseDense(
 	//shared memory
 	FaceBoundingBox face_bb,
@@ -192,7 +197,8 @@ __global__ void cuComputeJacobianSparseDense(
 
 		jacobian.block<3, 9>(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs) = (wDense * albedo) * bands;
 
-		/* Expression and shape derivations
+		/* 
+		 * Expression and shape derivations
 		 * Triangle = (A, B, C)
 		 * Normal{X, Y, Z} = normalize(cross(B - A, C - A))
 		 * Color = SH(Normal) * Albedo
@@ -260,38 +266,52 @@ __global__ void cuComputeJacobianSparseDense(
 
 		jacobian.block<3, 3>(offset_rows + current_index * 3, 1) = unnormnormal_jacobian * dnormal_dunnormnormal_sum * jacobian_rotation * wDense;
 
-		/* Energy derivation
+		/* 
+		 * Energy derivation
 		 * dE/dC_I
 		 * The derivative with respect to source image (frame_rgb)
 		 * Full perspective derivation
+		 * @ref http://www.songho.ca/opengl/gl_transform.html
 		 */
 
-		 //Pose
-		auto local_coord = barycentrics_sampled.x * current_face[vertex_ids_sampled.x] +
+		// Take into account barycentric interpolation in the fragment shader for vertices and their attributes
+		auto local_coord = 
+			barycentrics_sampled.x * current_face[vertex_ids_sampled.x] +
 			barycentrics_sampled.y * current_face[vertex_ids_sampled.y] +
 			barycentrics_sampled.z * current_face[vertex_ids_sampled.z];
 
 		auto world_coord = face_pose * glm::vec4(local_coord, 1.0f);
 		auto proj_coord = projection * world_coord;
 
-		//Derivative of source image with respect to (u,v)
-		//TODO: Check for boundary for xp and yp
+		// Derivative of source image (screen coordinate system) with respect to (u,v)
+		// TODO: Check for boundary for xp and yp
 		Eigen::Matrix<float, 3, 2> jacobian_uv;
 
 		int background_index_left = 3 * (xp - 1 + yp * imageWidth);
 		int background_index_right = 3 * (xp + 1 + yp * imageWidth);
 		int background_index_up = 3 * (xp + (yp - 1) * imageWidth);
 		int background_index_down = 3 * (xp + (yp + 1) * imageWidth);
+
+		/*
+		 * Central difference derivation for color ([c(i+1)-c(i-1)]/2p) and viewport transformation derivation
+		 * Color => Screen => NDC
+		 */
+
+		// dColor/du
 		jacobian_uv(0, 0) = -(image[background_index_right] / 255.0f - image[background_index_left] / 255.0f) * 0.25f * imageWidth;
 		jacobian_uv(1, 0) = -(image[background_index_right + 1] / 255.0f - image[background_index_left + 1] / 255.0f) *  0.25f * imageWidth;
 		jacobian_uv(2, 0) = -(image[background_index_right + 2] / 255.0f - image[background_index_left + 2] / 255.0f) *  0.25f * imageWidth;
+
+		// dColor/dv
 		jacobian_uv(0, 1) = (image[background_index_down] / 255.0f - image[background_index_up] / 255.0f) *  0.25f  * imageHeight;
 		jacobian_uv(1, 1) = (image[background_index_down + 1] / 255.0f - image[background_index_up + 1] / 255.0f) *  0.25f  * imageHeight;
 		jacobian_uv(2, 1) = (image[background_index_down + 2] / 255.0f - image[background_index_up + 2] / 255.0f) *  0.25f  * imageHeight;
 
-		//Jacobian for homogenization (AKA division by w)
+		// Jacobian for homogenization (AKA division by w)
+		// NCD => Clip coordinates
 		Eigen::Matrix<float, 2, 3> jacobian_proj;
 		auto one_over_wp = 1.0f / proj_coord.w;
+
 		jacobian_proj(0, 0) = one_over_wp;
 		jacobian_proj(0, 1) = 0.0f;
 		jacobian_proj(0, 2) = -proj_coord.x * one_over_wp * one_over_wp;
@@ -300,18 +320,33 @@ __global__ void cuComputeJacobianSparseDense(
 		jacobian_proj(1, 1) = one_over_wp;
 		jacobian_proj(1, 2) = -proj_coord.y * one_over_wp * one_over_wp;
 
-		//Jacobian for projection
+		/*
+		 * Jacobian for projection
+		 * Clip coordinates => Eye coordinates (which is identity matrix I, since the camera is assumed to be in the origin)
+		 * dProjection/dX, dProjection/dY, dProjection/dW
+		 */
 		Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
 		jacobian_world(0, 0) = projection[0][0];
 		jacobian_world(1, 1) = projection[1][1];
 		jacobian_world(2, 2) = -1.0f;
 
-		//Jacobian for intrinsics
+		/*
+		 * Jacobian for intrinsics (change of fov in our virtual camera)
+		 * dPerspectiveRH_NO/dFov
+		 * @ref glm::perspectiveRH_NO()
+		 */
 		Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
 		jacobian_intrinsics(0, 0) = world_coord.x;
 		jacobian.block<3, 1>(offset_rows + current_index * 3, 0) = jacobian_uv * jacobian_proj * jacobian_intrinsics * wDense;
 
-		//Derivative of world coordinates with respect to rotation coefficients
+		/*
+		 * Derivative of world coordinates with respect to rotation coefficients
+		 * Since this node (world space) in our computation graph is common for [R, T] as well as expression and shape
+		 * we can branch the calculations out and derive jacobian_pose first.
+		 * World coordinates => Local coordinates
+		 * X_world = R*X_local + T
+		 * dX_world/dR and dX_world/dT
+		 */
 		dx = drx * local_coord;
 		dy = dry * local_coord;
 		dz = drz * local_coord;
@@ -331,13 +366,18 @@ __global__ void cuComputeJacobianSparseDense(
 		jacobian_pose(2, 2) = dz[2];
 
 		auto jacobian_proj_world = jacobian_uv * jacobian_proj * jacobian_world;
+
 		jacobian.block<3, 6>(offset_rows + current_index * 3, 1) += jacobian_proj_world * jacobian_pose * wDense;
 
-		//Derivative of world coordinates with respect to local coordinates.
-		//This is basically the rotation matrix.
+		/*
+		 * Derivative of world coordinates with respect to local coordinates.
+		 * This is the rotation matrix.
+		 * X_world = R*X_local + T
+		 * dX_world/dX_local = R
+		 */
 		auto jacobian_proj_world_local = jacobian_proj_world * jacobian_local * wDense;
 
-		//Derivative of local coordinates with respect to shape and expression parameters
+		// Derivative of local coordinates with respect to shape and expression parameters
 		jacobian.block(offset_rows + current_index * 3, 7, 3, nShapeCoeffs) +=
 			(jacobian_proj_world_local * barycentrics_sampled.x) * shape_basis.block(3 * vertex_ids_sampled.x, 0, 3, nShapeCoeffs) +
 			(jacobian_proj_world_local * barycentrics_sampled.y) * shape_basis.block(3 * vertex_ids_sampled.y, 0, 3, nShapeCoeffs) +
