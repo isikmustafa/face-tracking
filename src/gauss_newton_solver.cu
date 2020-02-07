@@ -12,6 +12,11 @@
  * Compute Jacobian matrix for parametric model w.r.t fov of virtual camera, Rotation, Translation, α, β, δ, γ
  * (α, β, δ) are parametric model Eigen basis scaling factors
  * γ is illumination model (Spherical harmonics)
+ * 
+ * Optimization energy
+ * P = (intrinsics, pose, α, β, δ, γ)
+ * E(P) = w_col * E_col(P) + w_lan * E_lan(P) + w_reg * E_reg(P)
+ * 
  */
 __global__ void cuComputeJacobianSparseDense(
 	//shared memory
@@ -43,10 +48,11 @@ __global__ void cuComputeJacobianSparseDense(
 	cudaTextureObject_t barycentrics,
 	cudaTextureObject_t vertex_ids,
 
-	//device memory output
+	// Device memory output
 	float* p_jacobian, float* p_residuals)
 {
 	int i = util::getThreadIndex1D();
+
 	if (i >= n)
 	{
 		return;
@@ -59,7 +65,7 @@ __global__ void cuComputeJacobianSparseDense(
 	Eigen::Map<Eigen::MatrixXf> expression_basis(p_expression_basis, nVerticesTimes3, nExpressionCoeffsTotal);
 	Eigen::Map<Eigen::MatrixXf> albedo_basis(p_albedo_basis, nVerticesTimes3, nAlbedoCoeffsTotal);
 
-	// Regularization terms
+	// Regularization terms based on the assumption of a normal distributed population
 	if (i >= nFeatures + nPixels)
 	{
 		int offset_rows = nFeatures * 2 + nPixels * 3;
@@ -102,7 +108,7 @@ __global__ void cuComputeJacobianSparseDense(
 		return;
 	}
 
-	// Dense terms
+	// Dense terms of energy term
 	if (i >= nFeatures)
 	{
 		int offset_rows = nFeatures * 2;
@@ -137,7 +143,7 @@ __global__ void cuComputeJacobianSparseDense(
 		residuals.block(offset_rows + current_index * 3, 0, 3, 1) = residual * wDense;
 
 		/*
-		 * Photo-Consistency energy term
+		 * Photo-Consistency dense energy term
 		 * E = sum(l1_norm(C_S - C_I))
 		 * where C_S is synthesized image
 		 *	     C_I is input RGB image
@@ -153,9 +159,9 @@ __global__ void cuComputeJacobianSparseDense(
 		 * dColor/dAlbedo
 		 */
 		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) =
-			(barycentrics_sampled.w * wDense * barycentrics_sampled.x) * albedo_basis.block(3 * vertex_ids_sampled.x, 0, 3, nAlbedoCoeffs) +
-			(barycentrics_sampled.w * wDense * barycentrics_sampled.y) * albedo_basis.block(3 * vertex_ids_sampled.y, 0, 3, nAlbedoCoeffs) +
-			(barycentrics_sampled.w * wDense * barycentrics_sampled.z) * albedo_basis.block(3 * vertex_ids_sampled.z, 0, 3, nAlbedoCoeffs);
+			barycentrics_sampled.w * wDense * barycentrics_sampled.x * albedo_basis.block(3 * vertex_ids_sampled.x, 0, 3, nAlbedoCoeffs) +
+			barycentrics_sampled.w * wDense * barycentrics_sampled.y * albedo_basis.block(3 * vertex_ids_sampled.y, 0, 3, nAlbedoCoeffs) +
+			barycentrics_sampled.w * wDense * barycentrics_sampled.z * albedo_basis.block(3 * vertex_ids_sampled.z, 0, 3, nAlbedoCoeffs);
 
 		/*
 		 * Spherical harmonics derivation
@@ -185,6 +191,7 @@ __global__ void cuComputeJacobianSparseDense(
 
 		// dSH/d{9 coefficients}
 		Eigen::Matrix<float, 1, 9> bands(9);
+
 		bands(0, 0) = 1.0f;
 		bands(0, 1) = normal_glm.y;
 		bands(0, 2) = normal_glm.z;
@@ -195,7 +202,7 @@ __global__ void cuComputeJacobianSparseDense(
 		bands(0, 7) = normal_glm.x * normal_glm.z;
 		bands(0, 8) = normal_glm.x * normal_glm.x - normal_glm.y * normal_glm.y;
 
-		jacobian.block<3, 9>(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs) = (wDense * albedo) * bands;
+		jacobian.block<3, 9>(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs + nAlbedoCoeffs) = wDense * albedo * bands;
 
 		/* 
 		 * Expression and shape derivations
@@ -255,10 +262,12 @@ __global__ void cuComputeJacobianSparseDense(
 		jacobian_util::computeNormalizationJacobian(dnormal_dunnormnormal, normal_c_unnorm_glm);
 		dnormal_dunnormnormal_sum += barycentrics_sampled.z * dnormal_dunnormnormal;
 
-		Eigen::Matrix<float, 3, 3> jacobian_rotation;
+		Eigen::Matrix<float, 3, 3> jacobian_rotation = Eigen::MatrixXf::Zero(3, 3);
+
 		auto dx = drx * normals[vertex_ids_sampled.x];
 		auto dy = dry * normals[vertex_ids_sampled.y];
 		auto dz = drz * normals[vertex_ids_sampled.z];
+
 		jacobian_rotation <<
 			dx[0], dy[0], dz[0],
 			dx[1], dy[1], dz[1],
@@ -268,7 +277,7 @@ __global__ void cuComputeJacobianSparseDense(
 
 		/* 
 		 * Energy derivation
-		 * dE/dC_I
+		 * -dE/dC_I
 		 * The derivative with respect to source image (frame_rgb)
 		 * Full perspective derivation
 		 * @ref http://www.songho.ca/opengl/gl_transform.html
@@ -293,7 +302,7 @@ __global__ void cuComputeJacobianSparseDense(
 		int background_index_down = 3 * (xp + (yp + 1) * imageWidth);
 
 		/*
-		 * Central difference derivation for color ([c(i+1)-c(i-1)]/2p) and viewport transformation derivation
+		 * Central difference derivation for color ([c(i+1)-c(i-1)]/2p) with viewport transformation derivation
 		 * Color => Screen => NDC
 		 */
 
@@ -309,7 +318,8 @@ __global__ void cuComputeJacobianSparseDense(
 
 		// Jacobian for homogenization (AKA division by w)
 		// NCD => Clip coordinates
-		Eigen::Matrix<float, 2, 3> jacobian_proj;
+		Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
+
 		auto one_over_wp = 1.0f / proj_coord.w;
 
 		jacobian_proj(0, 0) = one_over_wp;
@@ -322,10 +332,13 @@ __global__ void cuComputeJacobianSparseDense(
 
 		/*
 		 * Jacobian for projection
-		 * Clip coordinates => Eye coordinates (which is identity matrix I, since the camera is assumed to be in the origin)
-		 * dProjection/dX, dProjection/dY, dProjection/dW
+		 * Clip coordinates => Eye coordinates (which is identity matrix I, since the camera is assumed to be at the origin)
+		 * dProjection/dX_world
+		 * dProjection/dY_world
+		 * dProjection/dW_world
 		 */
 		Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
+
 		jacobian_world(0, 0) = projection[0][0];
 		jacobian_world(1, 1) = projection[1][1];
 		jacobian_world(2, 2) = -1.0f;
@@ -336,6 +349,7 @@ __global__ void cuComputeJacobianSparseDense(
 		 * @ref glm::perspectiveRH_NO()
 		 */
 		Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
+
 		jacobian_intrinsics(0, 0) = world_coord.x;
 		jacobian.block<3, 1>(offset_rows + current_index * 3, 0) = jacobian_uv * jacobian_proj * jacobian_intrinsics * wDense;
 
@@ -344,7 +358,7 @@ __global__ void cuComputeJacobianSparseDense(
 		 * Since this node (world space) in our computation graph is common for [R, T] as well as expression and shape
 		 * we can branch the calculations out and derive jacobian_pose first.
 		 * World coordinates => Local coordinates
-		 * X_world = R*X_local + T
+		 * X_world = R * X_local+T
 		 * dX_world/dR and dX_world/dT
 		 */
 		dx = drx * local_coord;
@@ -352,6 +366,7 @@ __global__ void cuComputeJacobianSparseDense(
 		dz = drz * local_coord;
 
 		Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
+
 		jacobian_pose(0, 3) = 1.0f;
 		jacobian_pose(1, 4) = 1.0f;
 		jacobian_pose(2, 5) = 1.0f;
@@ -372,26 +387,31 @@ __global__ void cuComputeJacobianSparseDense(
 		/*
 		 * Derivative of world coordinates with respect to local coordinates.
 		 * This is the rotation matrix.
-		 * X_world = R*X_local + T
+		 * X_world = R * X_local + T
 		 * dX_world/dX_local = R
 		 */
 		auto jacobian_proj_world_local = jacobian_proj_world * jacobian_local * wDense;
 
 		// Derivative of local coordinates with respect to shape and expression parameters
 		jacobian.block(offset_rows + current_index * 3, 7, 3, nShapeCoeffs) +=
-			(jacobian_proj_world_local * barycentrics_sampled.x) * shape_basis.block(3 * vertex_ids_sampled.x, 0, 3, nShapeCoeffs) +
-			(jacobian_proj_world_local * barycentrics_sampled.y) * shape_basis.block(3 * vertex_ids_sampled.y, 0, 3, nShapeCoeffs) +
-			(jacobian_proj_world_local * barycentrics_sampled.z) * shape_basis.block(3 * vertex_ids_sampled.z, 0, 3, nShapeCoeffs);
+			jacobian_proj_world_local * barycentrics_sampled.x * shape_basis.block(3 * vertex_ids_sampled.x, 0, 3, nShapeCoeffs) +
+			jacobian_proj_world_local * barycentrics_sampled.y * shape_basis.block(3 * vertex_ids_sampled.y, 0, 3, nShapeCoeffs) +
+			jacobian_proj_world_local * barycentrics_sampled.z * shape_basis.block(3 * vertex_ids_sampled.z, 0, 3, nShapeCoeffs);
 
 		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) +=
-			(jacobian_proj_world_local * barycentrics_sampled.x) * expression_basis.block(3 * vertex_ids_sampled.x, 0, 3, nExpressionCoeffs) +
-			(jacobian_proj_world_local * barycentrics_sampled.y) * expression_basis.block(3 * vertex_ids_sampled.y, 0, 3, nExpressionCoeffs) +
-			(jacobian_proj_world_local * barycentrics_sampled.z) * expression_basis.block(3 * vertex_ids_sampled.z, 0, 3, nExpressionCoeffs);
+			jacobian_proj_world_local * barycentrics_sampled.x * expression_basis.block(3 * vertex_ids_sampled.x, 0, 3, nExpressionCoeffs) +
+			jacobian_proj_world_local * barycentrics_sampled.y * expression_basis.block(3 * vertex_ids_sampled.y, 0, 3, nExpressionCoeffs) +
+			jacobian_proj_world_local * barycentrics_sampled.z * expression_basis.block(3 * vertex_ids_sampled.z, 0, 3, nExpressionCoeffs);
 
 		return;
 	}
 
-	// Sparse terms
+	/*
+	 * Sparse terms for Feature Alignment
+	 * Feature similarity between a set of salient facial feature point pairs detect
+	 * 
+	 * E = sum(l2_norm(f - proj(local_coord))
+	 */
 	auto vertex_id = prior_local_ids[i];
 	auto local_coord = current_face[vertex_id];
 
@@ -399,14 +419,17 @@ __global__ void cuComputeJacobianSparseDense(
 	auto proj_coord = projection * world_coord;
 	auto uv = glm::vec2(proj_coord.x, proj_coord.y) / proj_coord.w;
 
-	//Residual
+	// Residual
 	auto residual = uv - sparse_features[i];
 
 	residuals(i * 2) = residual.x * wSparse;
 	residuals(i * 2 + 1) = residual.y * wSparse;
 
-	//Jacobian for homogenization (AKA division by w)
+	// Jacobians follow the same description like in the case of dense features
+
+	// Jacobian for homogenization (AKA division by w)
 	Eigen::Matrix<float, 2, 3> jacobian_proj;
+
 	auto one_over_wp = 1.0f / proj_coord.w;
 	jacobian_proj(0, 0) = one_over_wp;
 	jacobian_proj(0, 1) = 0.0f;
@@ -416,23 +439,26 @@ __global__ void cuComputeJacobianSparseDense(
 	jacobian_proj(1, 1) = one_over_wp;
 	jacobian_proj(1, 2) = -proj_coord.y * one_over_wp * one_over_wp;
 
-	//Jacobian for projection
+	// Jacobian for projection
 	Eigen::Matrix<float, 3, 3> jacobian_world = Eigen::MatrixXf::Zero(3, 3);
+
 	jacobian_world(0, 0) = projection[0][0];
 	jacobian_world(1, 1) = projection[1][1];
 	jacobian_world(2, 2) = -1.0f;
 
-	//Jacobian for intrinsics
+	// Jacobian for intrinsics
 	Eigen::Matrix<float, 3, 1> jacobian_intrinsics = Eigen::MatrixXf::Zero(3, 1);
+
 	jacobian_intrinsics(0, 0) = world_coord.x;
 	jacobian.block<2, 1>(i * 2, 0) = jacobian_proj * jacobian_intrinsics * wSparse;
 
-	//Derivative of world coordinates with respect to rotation coefficients
+	// Derivative of world coordinates with respect to rotation coefficients
 	auto dx = drx * local_coord;
 	auto dy = dry * local_coord;
 	auto dz = drz * local_coord;
 
 	Eigen::Matrix<float, 3, 6> jacobian_pose = Eigen::MatrixXf::Zero(3, 6);
+
 	jacobian_pose(0, 3) = 1.0f;
 	jacobian_pose(1, 4) = 1.0f;
 	jacobian_pose(2, 5) = 1.0f;
@@ -449,12 +475,12 @@ __global__ void cuComputeJacobianSparseDense(
 	auto jacobian_proj_world = jacobian_proj * jacobian_world * wSparse;
 	jacobian.block<2, 6>(i * 2, 1) = jacobian_proj_world * jacobian_pose;
 
-	//Derivative of world coordinates with respect to local coordinates.
-	//This is basically the rotation matrix.
+	// Derivative of world coordinates with respect to local coordinates.
+	// This is basically the rotation matrix.
 	auto jacobian_proj_world_local = jacobian_proj_world * jacobian_local;
 
-	//Derivative of local coordinates with respect to shape and expression parameters
-	//This is basically the corresponding (to unique vertices we have chosen) rows of basis matrices.
+	// Derivative of local coordinates with respect to shape and expression parameters
+	// This is basically the corresponding (to unique vertices we have chosen) rows of basis matrices.
 	auto jacobian_shape = jacobian_proj_world_local * shape_basis.block(3 * vertex_id, 0, 3, nShapeCoeffs);
 	jacobian.block(i * 2, 7, 2, nShapeCoeffs) = jacobian_shape;
 
@@ -469,6 +495,7 @@ __global__ void cuComputeVisiblePixelsAndBB(cudaTextureObject_t texture, FaceBou
 	{
 		return;
 	}
+
 	int y = height - 1 - index.y; // "height - 1 - index.y" is used since OpenGL uses left-bottom corner as texture origin.
 	float4 color = tex2D<float4>(texture, index.x, y);
 
@@ -579,6 +606,7 @@ void GaussNewtonSolver::computeJacobian(
 		p_jacobian, p_residuals
 		);
 	});
+
 	std::cout << "Jacobian kernel time: " << time << std::endl;
 
 	cudaDeviceSynchronize();
@@ -609,13 +637,14 @@ __global__ void cuOneOverElement(float* preconditioner)
 {
 	int i = util::getThreadIndex1D();
 
-	preconditioner[i] = 1.0f / (glm::max(preconditioner[i], 1.0e-4f));
+	preconditioner[i] = 1.0f / glm::max(preconditioner[i], 1.0e-4f);
 }
 
 void GaussNewtonSolver::computeJacobiPreconditioner(const int nUnknowns, const int nCurrentResiduals, const int nResiduals, float* jacobian, float* preconditioner)
 {
 	cuComputeJTJDiagonals << <nUnknowns, 128 >> > (nUnknowns, nCurrentResiduals, nResiduals, jacobian, preconditioner);
 	cudaDeviceSynchronize();
+
 	cuOneOverElement << <1, nUnknowns >> > (preconditioner);
 	cudaDeviceSynchronize();
 }

@@ -39,7 +39,7 @@ Face::Face(const std::string& morphable_model_directory)
 		positions[i] *= mesh_scale;
 
 		file >> colors[i].x >> colors[i].y >> colors[i].z;
-		colors[i] *= (1.0f / 255.0f);
+		colors[i] *= 1.0f / 255.0f;
 		file >> int_dummy;
 	}
 
@@ -92,7 +92,7 @@ Face::Face(const std::string& morphable_model_directory)
 	glEnableVertexAttribArray(3);
 
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)(positions_byte_size));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)positions_byte_size);
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (GLvoid*)(positions_byte_size + colors_byte_size));
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_index_buffer);
@@ -280,7 +280,7 @@ std::vector<float> Face::loadModelData(const std::string& filename, bool is_basi
 	unsigned int size;
 	file.read((char*)&size, sizeof(unsigned int));
 	std::vector<float> basis(size);
-	file.read((char*)(basis.data()), size * sizeof(float));
+	file.read((char*)basis.data(), size * sizeof(float));
 	file.close();
 
 	return basis;
