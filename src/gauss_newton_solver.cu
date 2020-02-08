@@ -225,8 +225,6 @@ __global__ void cuComputeJacobianSparseDense(
 
 		Eigen::Matrix<float, 3, 3> unnormnormal_jacobian = albedo * dlight_dnormal * dnormal_dunnormnormal;
 
-		Eigen::Matrix<float, 3, 3> dnormal_dunnormnormal_sum = Eigen::MatrixXf::Zero(3, 3);
-
 		Eigen::Matrix<float, 3, 3> v0_jacobian;
 		Eigen::Matrix<float, 3, 3> v1_jacobian;
 		Eigen::Matrix<float, 3, 3> v2_jacobian;
@@ -251,6 +249,8 @@ __global__ void cuComputeJacobianSparseDense(
 			v1_jacobian * expression_basis.block(3 * vertex_ids_sampled.y, 0, 3, nExpressionCoeffs) +
 			v2_jacobian * expression_basis.block(3 * vertex_ids_sampled.z, 0, 3, nExpressionCoeffs);
 
+		Eigen::Matrix<float, 3, 3> dnormal_dunnormnormal_sum = Eigen::MatrixXf::Zero(3, 3);
+
 		// For 1st vertex normal
 		jacobian_util::computeNormalizationJacobian(dnormal_dunnormnormal, normal_a_unnorm_glm);
 		dnormal_dunnormnormal_sum += barycentrics_sampled.x * dnormal_dunnormnormal;
@@ -263,7 +263,7 @@ __global__ void cuComputeJacobianSparseDense(
 		jacobian_util::computeNormalizationJacobian(dnormal_dunnormnormal, normal_c_unnorm_glm);
 		dnormal_dunnormnormal_sum += barycentrics_sampled.z * dnormal_dunnormnormal;
 
-		Eigen::Matrix<float, 3, 3> jacobian_rotation = Eigen::MatrixXf::Zero(3, 3);
+		Eigen::Matrix<float, 3, 3> jacobian_rotation;
 
 		auto dx = drx * normals[vertex_ids_sampled.x];
 		auto dy = dry * normals[vertex_ids_sampled.y];
@@ -319,7 +319,7 @@ __global__ void cuComputeJacobianSparseDense(
 
 		// Jacobian for homogenization (AKA division by w)
 		// NCD => Clip coordinates
-		Eigen::Matrix<float, 2, 3> jacobian_proj = Eigen::MatrixXf::Zero(2, 3);
+		Eigen::Matrix<float, 2, 3> jacobian_proj;
 
 		auto one_over_wp = 1.0f / proj_coord.w;
 

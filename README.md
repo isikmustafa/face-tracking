@@ -1,4 +1,4 @@
-# RGB Face Reconstruction 
+# RGB Face Tracking and Reconstruction using CUDA 
 
 Results
 
@@ -15,7 +15,7 @@ Setup configuration
 Environment variables
 
 Side notes:
-***To run the project you will need a paramteric face model***  
+***To run the project you will need a parametric face model***  
 Use `OpenCV 4.0.0`
 
 | NAME            | EXAMPLE VALUE                                                 |
@@ -50,3 +50,4 @@ References
 * [A Morphable Model For The Synthesis Of 3D Faces](https://gravis.dmi.unibas.ch/publications/Sigg99/morphmod2.pdf)
 * [Real-time Expression Transfer for Facial Reenactment](http://zollhoefer.com/papers/SGA2015_Face/paper.pdf)
 * [Face2Face: Real-time Face Capture and Reenactment of RGB Videos](http://niessnerlab.org/papers/2019/8facetoface/thies2018face.pdf)
+* [An Efficient Representation for Irradiance Environment Maps](https://cseweb.ucsd.edu/~ravir/papers/envmap/envmap.pdf)
