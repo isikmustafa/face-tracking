@@ -53,8 +53,6 @@ Face::Face(const std::string& morphable_model_directory)
 	}
 	file.close();
 
-	//We will only update position, color and normals of vertices. In order not to copy the constant texture coordinates,
-	//we dont allocate memory for them.
 	m_average_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 3);
 	m_current_face_gpu = util::DeviceArray<glm::vec3>(m_number_of_vertices * 3);
 
