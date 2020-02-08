@@ -19,7 +19,7 @@
  * 
  */
 __global__ void cuComputeJacobianSparseDense(
-	//shared memory
+	// Shared memory
 	FaceBoundingBox face_bb,
 	const int nFeatures, const int imageWidth, const int imageHeight,
 	const int nFaceCoeffs, const int nPixels, const int n,
@@ -32,7 +32,7 @@ __global__ void cuComputeJacobianSparseDense(
 
 	glm::mat4 face_pose, glm::mat3 drx, glm::mat3 dry, glm::mat3 drz, glm::mat4 projection, Eigen::Matrix3f jacobian_local,
 
-	//device memory input
+	// Device memory input
 	int* prior_local_ids, glm::vec3* current_face, glm::vec2* sparse_features,
 
 	float* p_shape_basis,
@@ -109,10 +109,10 @@ __global__ void cuComputeJacobianSparseDense(
 	}
 
 	/*
-     * Photo-Consistency dense energy term
+	 * Photo-Consistency dense energy term
 	 * E = sum(norm_l2(C_S - C_I))
 	 * where C_S is synthesized image
-	 *	     C_I is input RGB image
+	 *	 C_I is input RGB image
 	 *
 	 */
 	if (i >= nFeatures)
@@ -150,8 +150,8 @@ __global__ void cuComputeJacobianSparseDense(
 
 		/*
 		 * Energy derivation
-		 * dE/dC_I
-		 * The derivative with respect to source image (frame_rgb)
+		 * dE/dC_S
+		 * The derivative with respect to synthesized image
 		 * Fragment shader derivation
 		 *
 		 * Albedo derivation
@@ -214,6 +214,7 @@ __global__ void cuComputeJacobianSparseDense(
 		 *
 		 * dColor/dα and dColor/dδ
 		 *
+		 * Example of chain rule:
 		 * dColor/dα = dColor/dSH * dSH/dNormal * dNormal/dNormalize() * dNormalize/dCross() * dCross()/d{(B - A), (C - A), A}
 		 */
 		Eigen::Matrix<float, 1, 3> dlight_dnormal;
@@ -411,6 +412,7 @@ __global__ void cuComputeJacobianSparseDense(
 	 * Feature similarity between a set of salient facial feature point pairs detect
 	 * 
 	 * E = sum(l2_norm(f - Π(Φ(local_coord))^2)
+	 * where Π(Φ()) is full perspective projection
 	 */
 	auto vertex_id = prior_local_ids[i];
 	auto local_coord = current_face[vertex_id];
