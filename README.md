@@ -1,8 +1,21 @@
-# face-tracking
+# RGB Face Reconstruction 
+
+Results
+
+On the left you can see a face reconstruction based on the input video from the right  
+
+Barack Obama  
+![](results/Obama.gif)  
+
+Justin Trudeau  
+![](results/Trudeau.gif)
+
+Setup configuration
 
 Environment variables
 
 Side notes:
+***To run the project you will need a paramteric face model***  
 Use `OpenCV 4.0.0`
 
 | NAME            | EXAMPLE VALUE                                                 |
@@ -36,4 +49,4 @@ DLIB instruction
 References
 * [A Morphable Model For The Synthesis Of 3D Faces](https://gravis.dmi.unibas.ch/publications/Sigg99/morphmod2.pdf)
 * [Real-time Expression Transfer for Facial Reenactment](http://zollhoefer.com/papers/SGA2015_Face/paper.pdf)
-* [Face2Face: Real-time Face Capture and Reenactment of RGB Videos](https://web.stanford.edu/~zollhoef/papers/CVPR2016_Face2Face/paper.pdf)
+* [Face2Face: Real-time Face Capture and Reenactment of RGB Videos](http://niessnerlab.org/papers/2019/8facetoface/thies2018face.pdf)
