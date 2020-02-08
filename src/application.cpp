@@ -392,7 +392,7 @@ void Application::printUniqueFaceVerticesSparse()
 		auto bary_coords = barycentrics_frame.at<glm::vec4>(y, x);
 
 		//We should select the vertex id corresponding to the largest barycentric coordinate.
-		int axis = bary_coords.z > bary_coords.y && bary_coords.z > bary_coords.x ? 2 : bary_coords.y > bary_coords.x;
+		int axis = bary_coords.z > bary_coords.y && bary_coords.z > bary_coords.x ? 2 : (bary_coords.y > bary_coords.x);
 		std::cout << vertex_ids[axis] << std::endl;
 
 		/*cv::Scalar color(0, 255, 0);

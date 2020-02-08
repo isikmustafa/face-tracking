@@ -15,7 +15,7 @@ Setup configuration
 Environment variables
 
 Side notes:
-***To run the project you will need a paramteric face mode***
+***To run the project you will need a paramteric face model***  
 Use `OpenCV 4.0.0`
 
 | NAME            | EXAMPLE VALUE                                                 |

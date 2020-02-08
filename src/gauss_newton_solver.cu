@@ -10,7 +10,7 @@
 
 /**
  * Compute Jacobian matrix for parametric model w.r.t fov of virtual camera, Rotation, Translation, α, β, δ, γ
- * (α, β, δ) are parametric model Eigen basis scaling factors
+ * (α, β, δ) are parametric face model Eigen basis scaling factors
  * γ is illumination model (Spherical harmonics)
  * 
  * Optimization energy
@@ -108,7 +108,13 @@ __global__ void cuComputeJacobianSparseDense(
 		return;
 	}
 
-	// Dense terms of energy term
+	/*
+     * Photo-Consistency dense energy term
+	 * E = sum(norm_l2(C_S - C_I))
+	 * where C_S is synthesized image
+	 *	     C_I is input RGB image
+	 *
+	 */
 	if (i >= nFeatures)
 	{
 		int offset_rows = nFeatures * 2;
@@ -143,11 +149,6 @@ __global__ void cuComputeJacobianSparseDense(
 		residuals.block(offset_rows + current_index * 3, 0, 3, 1) = residual * wDense;
 
 		/*
-		 * Photo-Consistency dense energy term
-		 * E = sum(l1_norm(C_S - C_I))
-		 * where C_S is synthesized image
-		 *	     C_I is input RGB image
-		 *
 		 * Energy derivation
 		 * dE/dC_I
 		 * The derivative with respect to source image (frame_rgb)
@@ -159,9 +160,9 @@ __global__ void cuComputeJacobianSparseDense(
 		 * dColor/dAlbedo
 		 */
 		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs + nExpressionCoeffs, 3, nAlbedoCoeffs) =
-			barycentrics_sampled.w * wDense * barycentrics_sampled.x * albedo_basis.block(3 * vertex_ids_sampled.x, 0, 3, nAlbedoCoeffs) +
-			barycentrics_sampled.w * wDense * barycentrics_sampled.y * albedo_basis.block(3 * vertex_ids_sampled.y, 0, 3, nAlbedoCoeffs) +
-			barycentrics_sampled.w * wDense * barycentrics_sampled.z * albedo_basis.block(3 * vertex_ids_sampled.z, 0, 3, nAlbedoCoeffs);
+			(barycentrics_sampled.w * wDense * barycentrics_sampled.x) * albedo_basis.block(3 * vertex_ids_sampled.x, 0, 3, nAlbedoCoeffs) +
+			(barycentrics_sampled.w * wDense * barycentrics_sampled.y) * albedo_basis.block(3 * vertex_ids_sampled.y, 0, 3, nAlbedoCoeffs) +
+			(barycentrics_sampled.w * wDense * barycentrics_sampled.z) * albedo_basis.block(3 * vertex_ids_sampled.z, 0, 3, nAlbedoCoeffs);
 
 		/*
 		 * Spherical harmonics derivation
@@ -393,14 +394,14 @@ __global__ void cuComputeJacobianSparseDense(
 
 		// Derivative of local coordinates with respect to shape and expression parameters
 		jacobian.block(offset_rows + current_index * 3, 7, 3, nShapeCoeffs) +=
-			jacobian_proj_world_local * barycentrics_sampled.x * shape_basis.block(3 * vertex_ids_sampled.x, 0, 3, nShapeCoeffs) +
-			jacobian_proj_world_local * barycentrics_sampled.y * shape_basis.block(3 * vertex_ids_sampled.y, 0, 3, nShapeCoeffs) +
-			jacobian_proj_world_local * barycentrics_sampled.z * shape_basis.block(3 * vertex_ids_sampled.z, 0, 3, nShapeCoeffs);
+			(jacobian_proj_world_local * barycentrics_sampled.x) * shape_basis.block(3 * vertex_ids_sampled.x, 0, 3, nShapeCoeffs) +
+			(jacobian_proj_world_local * barycentrics_sampled.y) * shape_basis.block(3 * vertex_ids_sampled.y, 0, 3, nShapeCoeffs) +
+			(jacobian_proj_world_local * barycentrics_sampled.z) * shape_basis.block(3 * vertex_ids_sampled.z, 0, 3, nShapeCoeffs);
 
 		jacobian.block(offset_rows + current_index * 3, 7 + nShapeCoeffs, 3, nExpressionCoeffs) +=
-			jacobian_proj_world_local * barycentrics_sampled.x * expression_basis.block(3 * vertex_ids_sampled.x, 0, 3, nExpressionCoeffs) +
-			jacobian_proj_world_local * barycentrics_sampled.y * expression_basis.block(3 * vertex_ids_sampled.y, 0, 3, nExpressionCoeffs) +
-			jacobian_proj_world_local * barycentrics_sampled.z * expression_basis.block(3 * vertex_ids_sampled.z, 0, 3, nExpressionCoeffs);
+			(jacobian_proj_world_local * barycentrics_sampled.x) * expression_basis.block(3 * vertex_ids_sampled.x, 0, 3, nExpressionCoeffs) +
+			(jacobian_proj_world_local * barycentrics_sampled.y) * expression_basis.block(3 * vertex_ids_sampled.y, 0, 3, nExpressionCoeffs) +
+			(jacobian_proj_world_local * barycentrics_sampled.z) * expression_basis.block(3 * vertex_ids_sampled.z, 0, 3, nExpressionCoeffs);
 
 		return;
 	}
@@ -409,7 +410,7 @@ __global__ void cuComputeJacobianSparseDense(
 	 * Sparse terms for Feature Alignment
 	 * Feature similarity between a set of salient facial feature point pairs detect
 	 * 
-	 * E = sum(l2_norm(f - Π(Φ(local_coord)))
+	 * E = sum(l2_norm(f - Π(Φ(local_coord))^2)
 	 */
 	auto vertex_id = prior_local_ids[i];
 	auto local_coord = current_face[vertex_id];

@@ -40,9 +40,9 @@ namespace jacobian_util
 		auto yz = unnormalized_vector.y * unnormalized_vector.z;
 
 		d <<
-			y2 + z2, -xy, -xz,
-			-xy, x2 + z2, -yz,
-			-xz, -yz, x2 + y2;
+			(y2 + z2), -xy, -xz,
+			-xy, (x2 + z2), -yz,
+			-xz, -yz, (x2 + y2);
 
 		d *= glm::pow(x2 + y2 + z2, -1.5f);
 	}
